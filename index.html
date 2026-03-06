@@ -632,6 +632,7 @@ async function createRoom() {
       votes:{}, nominated_chancellor:null, last_president_id:null, last_chancellor_id:null,
       executive_action:null, veto_requested:false, peek_result:null,
       investigate_result:null, hitler_killed:false, hitler_elected:false, log:[],
+      night_ready:[],
     },
     screen: 'waiting',
   });
@@ -707,6 +708,7 @@ async function startGame() {
     peek_result: null, investigate_result: null,
     hitler_killed: false, hitler_elected: false,
     log: [{ round:1, text:`Game started with ${APP.players.length} players.` }],
+    night_ready: [],
   };
 
   APP.roles = assignedRoles;
@@ -805,14 +807,17 @@ async function resolveVote(gs, votes, passed) {
       return newGs;
     }
     let newGs = addLog(gs, `Vote passed. ${president?.name} & ${nominated?.name} form the government.`);
-    newGs = { ...newGs, phase:'vote_result', chancellor_id:gs.nominated_chancellor, election_tracker:0, votes };
+    newGs = { ...newGs, phase:'vote_result', chancellor_id:gs.nominated_chancellor, election_tracker:0, votes,
+      current_pres_name: president?.name || 'President',
+      current_chanc_name: nominated?.name || 'Chancellor',
+    };
     setTimeout(async () => {
       await beginLegislation();
     }, 2200);
     return newGs;
   } else {
     const newTracker = gs.election_tracker + 1;
-    let newGs = addLog(gs, `Vote failed. Election tracker: ${newTracker}.`);
+    let newGs = addLog(gs, `Vote failed. ${president?.name} & ${nominated?.name} rejected. Election tracker: ${newTracker}.`);
     if (newTracker >= 3) {
       newGs = addLog(newGs, 'Country in chaos! Top policy auto-enacted.');
       newGs = { ...newGs, votes, phase:'vote_result' };
@@ -820,7 +825,8 @@ async function resolveVote(gs, votes, passed) {
         const cur = APP.gameState;
         const deck = cur.draw_pile.length > 0 ? cur.draw_pile : shuffle(INITIAL_DECK);
         const [top, ...rest] = deck;
-        await enactPolicy(top, rest, cur.discard_pile, true, 0);
+        const chaosPres = APP.players.find(p=>p.id===cur.president_id)?.name || 'President';
+        await enactPolicy(top, rest, cur.discard_pile, true, 0, chaosPres, '(chaos — no chancellor)');
       }, 2200);
       return newGs;
     }
@@ -856,7 +862,8 @@ async function presidentDiscard(idx) {
   if (gs.president_id !== APP.myId) return;
   const cards = [...gs.president_cards];
   const [discarded] = cards.splice(idx,1);
-  let newGs = addLog(gs, 'President discarded a policy.');
+  const presName = gs.current_pres_name || APP.players.find(p=>p.id===gs.president_id)?.name || 'President';
+  let newGs = addLog(gs, `${presName} (President) discarded a policy.`);
   newGs = { ...newGs, phase:'chancellor_discard', president_cards:[], chancellor_cards:cards, discard_pile:[...gs.discard_pile, discarded] };
   APP.gameState = newGs;
   await pushRoomState({ game_state: newGs });
@@ -869,17 +876,22 @@ async function chancellorDiscard(idx) {
   const cards = [...gs.chancellor_cards];
   const [discarded] = cards.splice(idx,1);
   const enacted = cards[0];
-  let newGs = addLog(gs, 'Chancellor discarded a policy.');
+  const presName  = gs.current_pres_name  || APP.players.find(p=>p.id===gs.president_id)?.name  || 'President';
+  const chancName = gs.current_chanc_name || APP.players.find(p=>p.id===gs.chancellor_id)?.name || 'Chancellor';
+  let newGs = addLog(gs, `${chancName} (Chancellor) discarded a policy.`);
   APP.gameState = newGs;
-  await enactPolicy(enacted, gs.draw_pile, [...gs.discard_pile, discarded], false, gs.election_tracker);
+  await enactPolicy(enacted, gs.draw_pile, [...gs.discard_pile, discarded], false, gs.election_tracker, presName, chancName);
 }
 
 
-async function enactPolicy(policy, deck, discard, chaos, tracker) {
+async function enactPolicy(policy, deck, discard, chaos, tracker, presName, chancName) {
   const gs = APP.gameState;
   const newLib = policy==='liberal' ? gs.liberal_policies+1 : gs.liberal_policies;
   const newFas = policy==='fascist' ? gs.fascist_policies+1 : gs.fascist_policies;
-  let newGs = addLog(gs, `📜 ${policy.toUpperCase()} policy enacted!`);
+  // Use passed-in names, then gs snapshot, then live lookup — in priority order
+  const enactPres  = presName  || gs.current_pres_name  || APP.players.find(p=>p.id===gs.president_id)?.name  || 'President';
+  const enactChanc = chancName || gs.current_chanc_name || APP.players.find(p=>p.id===gs.chancellor_id)?.name || 'Chancellor';
+  let newGs = addLog(gs, `📜 ${policy.toUpperCase()} policy enacted! (${enactPres} & ${enactChanc})`);
   const win = checkWin({ ...gs, liberal_policies:newLib, fascist_policies:newFas });
   let execAction = (!chaos && policy==='fascist') ? getExecAction(newFas, APP.players.length) : null;
   const nextPres = nextPresId(gs.president_id, APP.players);
@@ -908,7 +920,8 @@ async function executePeek() {
   let deck = [...gs.draw_pile];
   if (deck.length < 3) deck = shuffle([...deck, ...gs.discard_pile]);
   const peeked = deck.slice(0,3);
-  let newGs = addLog(gs, 'President peeked at the top 3 policy cards.');
+  const peekPres = APP.players.find(p=>p.id===gs.president_id)?.name||'President';
+  let newGs = addLog(gs, `${peekPres} (President) peeked at the top 3 policy cards.`);
   newGs = { ...newGs, peek_result: peeked };
   APP.gameState = newGs;
   await pushRoomState({ game_state: newGs });
@@ -919,7 +932,8 @@ async function executeInvestigate(targetId) {
   const gs = APP.gameState;
   const target = APP.players.find(p=>p.id===targetId);
   const party = APP.roles[targetId]==='liberal' ? 'liberal' : 'fascist';
-  let newGs = addLog(gs, `President investigated ${target?.name}'s party.`);
+  const invPres = APP.players.find(p=>p.id===gs.president_id)?.name||'President';
+  let newGs = addLog(gs, `${invPres} (President) investigated ${target?.name}'s party.`);
   newGs = { ...newGs, investigate_result: { name:target?.name, party } };
   APP.gameState = newGs;
   await pushRoomState({ game_state: newGs });
@@ -929,7 +943,8 @@ async function executeInvestigate(targetId) {
 async function executeSpecialElect(targetId) {
   const gs = APP.gameState;
   const target = APP.players.find(p=>p.id===targetId);
-  let newGs = addLog(gs, `Special election: ${target?.name} is the new President.`);
+  const specPres = APP.players.find(p=>p.id===gs.president_id)?.name||'President';
+  let newGs = addLog(gs, `${specPres} (President) called a special election: ${target?.name} is the next President.`);
   newGs = { ...newGs, phase:'nomination', president_id:targetId, executive_action:null, nominated_chancellor:null, chancellor_id:null };
   APP.gameState = newGs;
   await pushRoomState({ game_state: newGs });
@@ -939,7 +954,8 @@ async function executeSpecialElect(targetId) {
 async function executeKill(targetId) {
   const gs = APP.gameState;
   const target = APP.players.find(p=>p.id===targetId);
-  let newGs = addLog(gs, `President executed ${target?.name}.`);
+  const killPres = APP.players.find(p=>p.id===gs.president_id)?.name||'President';
+  let newGs = addLog(gs, `${killPres} (President) executed ${target?.name}.`);
   const hitlerKilled = APP.roles[targetId]==='hitler';
   const newPlayers = APP.players.map(p => p.id===targetId ? {...p,alive:false} : p);
   APP.players = newPlayers;
@@ -970,7 +986,8 @@ async function doneWithExecutive() {
 
 async function requestVeto() {
   const gs = APP.gameState;
-  let newGs = addLog(gs, 'Chancellor requested a veto.');
+  const vetoChancName = APP.players.find(p=>p.id===gs.chancellor_id)?.name||'Chancellor';
+  let newGs = addLog(gs, `${vetoChancName} (Chancellor) requested a veto.`);
   newGs = { ...newGs, veto_requested:true };
   APP.gameState = newGs;
   await pushRoomState({ game_state: newGs });
@@ -981,14 +998,16 @@ async function respondVeto(accept) {
   const gs = APP.gameState;
   if (accept) {
     const newTracker = gs.election_tracker+1;
-    let newGs = addLog(gs, 'President accepted veto. Both policies discarded.');
+    const vetoPres = APP.players.find(p=>p.id===gs.president_id)?.name||'President';
+    let newGs = addLog(gs, `${vetoPres} (President) accepted the veto. Both policies discarded.`);
     const newDiscard = [...gs.discard_pile, ...gs.chancellor_cards];
     if (newTracker >= 3) {
       newGs = addLog(newGs, 'Country in chaos! Top policy auto-enacted.');
       const deck = gs.draw_pile.length>0 ? gs.draw_pile : shuffle(INITIAL_DECK);
       const [top,...rest] = deck;
+      const vetoChaosP = APP.players.find(p=>p.id===gs.president_id)?.name || 'President';
       APP.gameState = newGs;
-      await enactPolicy(top, rest, newDiscard, true, 0);
+      await enactPolicy(top, rest, newDiscard, true, 0, vetoChaosP, 'chaos');
     } else {
       const nextPres = nextPresId(gs.president_id, APP.players);
       newGs = { ...newGs, election_tracker:newTracker, discard_pile:newDiscard, chancellor_cards:[], phase:'nomination', round:newGs.round+1, president_id:nextPres, chancellor_id:null, nominated_chancellor:null, votes:{}, veto_requested:false };
@@ -997,7 +1016,8 @@ async function respondVeto(accept) {
       render();
     }
   } else {
-    let newGs = addLog(gs, 'President rejected veto. Chancellor must enact a policy.');
+    const rejectPres = APP.players.find(p=>p.id===gs.president_id)?.name||'President';
+    let newGs = addLog(gs, `${rejectPres} (President) rejected the veto. Chancellor must enact a policy.`);
     newGs = { ...newGs, veto_requested:false };
     APP.gameState = newGs;
     await pushRoomState({ game_state: newGs });
@@ -1017,6 +1037,7 @@ async function resetGame() {
     votes:{}, nominated_chancellor:null, last_president_id:null, last_chancellor_id:null,
     executive_action:null, veto_requested:false, peek_result:null,
     investigate_result:null, hitler_killed:false, hitler_elected:false, log:[],
+    night_ready:[],
   };
   APP.gameState = gs;
   await pushRoomState({ roles:{}, game_state:gs, screen:'waiting' });
@@ -1190,14 +1211,51 @@ function buildNight() {
     ? h('p',{class:'night-hint'},"You don't know who is who. Trust your instincts and watch the policies.")
     : null;
 
-  const btn = !APP.nightRevealed
-    ? h('button',{class:'btn btn-primary btn-lg',onClick:()=>{ APP.nightRevealed=true; APP.roleVisible=true; render(); }},"I've memorized my role")
-    : APP.isHost
-      ? h('button',{class:'btn btn-primary btn-lg',onClick:async()=>{ APP.roleVisible=true; APP.screen='game'; await pushRoomState({screen:'game'}); render(); }},'Begin the Game →')
-      : h('div',{style:{textAlign:'center'}},
-          h('p',{class:'text-dim italic',style:{marginTop:'8px'}},'Waiting for host to begin the game…'),
-          h('p',{class:'text-faint italic',style:{fontSize:'.8rem',marginTop:'6px'}},'Your role has been saved — you\'ll see it in the 🎭 My ID tab once the game starts.')
-        );
+  const nightReady = APP.gameState?.night_ready || [];
+  const allReady = APP.players.length > 0 && APP.players.every(p => nightReady.includes(p.id));
+  const readyCount = nightReady.length;
+  const totalCount = APP.players.length;
+
+  let btn;
+  if (!APP.nightRevealed) {
+    btn = h('button', {class:'btn btn-primary btn-lg', onClick: async () => {
+      APP.nightRevealed = true;
+      APP.roleVisible = true;
+      const gs = APP.gameState;
+      const already = gs?.night_ready || [];
+      if (!already.includes(APP.myId)) {
+        const updated = { ...gs, night_ready: [...already, APP.myId] };
+        APP.gameState = updated;
+        await pushRoomState({ game_state: updated });
+      }
+      render();
+    }}, "I've memorized my role");
+  } else if (APP.isHost) {
+    btn = h('div', {style:{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', gap:'10px'}},
+      h('p', {class:'text-dim italic', style:{fontSize:'.88rem'}},
+        allReady ? 'All players are ready!' : `Waiting for players… (${readyCount}/${totalCount} ready)`
+      ),
+      h('button', {
+        class: 'btn btn-primary btn-lg',
+        disabled: !allReady,
+        onClick: async () => {
+          APP.roleVisible = true;
+          APP.screen = 'game';
+          await pushRoomState({ screen: 'game' });
+          render();
+        }
+      }, 'Begin the Game →')
+    );
+  } else {
+    btn = h('div', {style:{textAlign:'center'}},
+      h('p', {class:'text-dim italic', style:{marginTop:'8px'}},
+        allReady ? '✓ All players ready! Waiting for host to begin…' : `Waiting for others… (${readyCount}/${totalCount} ready)`
+      ),
+      h('p', {class:'text-faint italic', style:{fontSize:'.8rem', marginTop:'6px'}},
+        "Your role is saved — you'll see it in the 🎭 My ID tab once the game starts."
+      )
+    );
+  }
 
   return h('div',{class:'night-phase'},
     h('div',{class:'night-label'},'Your Role'),
