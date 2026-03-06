@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
   <title>Secret Hitler</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
@@ -22,17 +23,25 @@
       --navy: #0E1628;
       --navy2: #141E34;
       --navy3: #1A2540;
-      --panel: rgba(16,22,40,0.97);
+      --panel: #0F1628;
       --panel-border: rgba(176,141,87,0.2);
       --green-pass: #4E9A6E;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    /* ─── CROSS-PLATFORM COLOR NORMALIZATION ───────────────── */
+    /* Force sRGB color space on all platforms for consistency   */
+    :root {
+      color-scheme: dark;
+      -webkit-text-size-adjust: 100%;
+    }
+    /* Replace low-alpha rgba backgrounds with opaque hex equivalents
+       to avoid Android/iOS compositing differences */
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
     body {
       background: var(--navy); color: var(--ivory);
       font-family: 'Crimson Text', serif; min-height: 100vh;
       background-image:
-        radial-gradient(ellipse at 20% 50%, rgba(122,32,48,0.08) 0%, transparent 55%),
-        radial-gradient(ellipse at 80% 15%, rgba(107,143,173,0.06) 0%, transparent 50%);
+        radial-gradient(ellipse at 20% 50%, #1A1020 0%, #0E1628 55%),
+        radial-gradient(ellipse at 80% 15%, #101520 0%, #0E1628 50%);
     }
     .app { min-height: 100vh; display: flex; flex-direction: column; }
 
@@ -59,11 +68,11 @@
     .btn:hover { transform: translateY(-1px); filter: brightness(1.1); }
     .btn:active { transform: scale(.97); }
     .btn:disabled { opacity: .35; cursor: not-allowed; transform: none; filter: none; }
-    .btn-primary { background: linear-gradient(135deg, var(--burg), var(--burg-light)); color: var(--ivory); border: 1px solid rgba(176,141,87,.2); box-shadow: 0 4px 16px rgba(0,0,0,.4); }
-    .btn-secondary { background: rgba(176,141,87,.12); color: var(--bronze-light); border: 1px solid rgba(176,141,87,.35); }
+    .btn-primary { background: linear-gradient(135deg, #7A2030 0%, #9B3040 100%); color: var(--ivory); border: 1px solid rgba(176,141,87,.2); box-shadow: 0 4px 16px rgba(0,0,0,.4); }
+    .btn-secondary { background: #161E31; color: var(--bronze-light); border: 1px solid rgba(176,141,87,.35); }
     .btn-ghost { background: rgba(232,224,212,.04); color: var(--ivory-dim); border: 1px solid rgba(232,224,212,.15); }
-    .btn-liberal { background: linear-gradient(135deg,#4A7A9B,var(--steel-light)); color: white; border: 1px solid rgba(138,174,200,.25); box-shadow: 0 4px 14px rgba(0,0,0,.35); }
-    .btn-fascist { background: linear-gradient(135deg, var(--burg), var(--burg-light)); color: var(--ivory); border: 1px solid rgba(176,141,87,.15); box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+    .btn-liberal { background: linear-gradient(135deg, #4A7A9B 0%, #8AAEC8 100%); color: white; border: 1px solid rgba(138,174,200,.25); box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+    .btn-fascist { background: linear-gradient(135deg, #7A2030 0%, #9B3040 100%); color: var(--ivory); border: 1px solid rgba(176,141,87,.15); box-shadow: 0 4px 14px rgba(0,0,0,.35); }
     .btn-sm { padding: 7px 14px; font-size: .72rem; }
     .btn-lg { padding: 14px 38px; font-size: .95rem; }
     .btn-full { width: 100%; }
@@ -83,7 +92,7 @@
     .input-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
     .input-label { font-family: 'Cinzel', serif; font-size: .67rem; letter-spacing: .15em; color: var(--bronze); text-transform: uppercase; }
     .input {
-      background: rgba(14,22,40,.7); border: 1px solid rgba(176,141,87,.25);
+      background: #111B30; border: 1px solid rgba(176,141,87,.25);
       color: var(--ivory); font-family: 'Crimson Text', serif; font-size: 1.1rem;
       padding: 10px 14px; width: 100%; outline: none; transition: border-color .2s; border-radius: 6px;
     }
@@ -108,15 +117,15 @@
     .invite-copy-btn {
       font-family: 'Cinzel', serif; font-size: .68rem; letter-spacing: .08em;
       text-transform: uppercase; padding: 9px 22px; border-radius: 6px;
-      border: 1px solid rgba(176,141,87,.35); background: rgba(176,141,87,.1);
+      border: 1px solid rgba(176,141,87,.35); background: #151C2F;
       color: var(--bronze-light); cursor: pointer; transition: all .18s;
     }
     .invite-copy-btn:hover { background: rgba(176,141,87,.2); border-color: var(--bronze); }
-    .invite-copy-btn.copied { color: var(--green-pass); border-color: rgba(78,154,110,.5); background: rgba(78,154,110,.08); }
+    .invite-copy-btn.copied { color: var(--green-pass); border-color: rgba(78,154,110,.5); background: #121E1C; }
     .player-list { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
     .player-item {
       display: flex; align-items: center; gap: 12px; padding: 10px 14px;
-      background: rgba(255,255,255,.03); border: 1px solid var(--panel-border);
+      background: #111929; border: 1px solid var(--panel-border);
       border-left: 3px solid var(--bronze); border-radius: 6px;
     }
     .player-avatar {
@@ -130,7 +139,7 @@
     .player-host-badge {
       font-family: 'Cinzel', serif; font-size: .58rem; letter-spacing: .1em;
       color: var(--bronze); border: 1px solid rgba(176,141,87,.35);
-      padding: 2px 8px; border-radius: 4px; background: rgba(176,141,87,.08);
+      padding: 2px 8px; border-radius: 4px; background: #141B2D;
     }
     .host-actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
     .waiting-footer { text-align: center; color: var(--ivory-faint); font-style: italic; margin-top: 16px; font-size: .9rem; }
@@ -145,7 +154,7 @@
       gap: 16px; cursor: pointer; transition: all .3s;
     }
     .role-card.liberal { border-color: var(--steel); background: linear-gradient(160deg, rgba(107,143,173,.2), rgba(14,22,40,.95)); box-shadow: 0 8px 32px rgba(0,0,0,.5); }
-    .role-card.fascist { border-color: var(--burg); background: linear-gradient(160deg, rgba(122,32,48,.2), rgba(14,22,40,.95)); box-shadow: 0 8px 32px rgba(0,0,0,.5); }
+    .role-card.fascist { border-color: var(--burg); background: linear-gradient(160deg, #221527, rgba(14,22,40,.95)); box-shadow: 0 8px 32px rgba(0,0,0,.5); }
     .role-card.hitler { border-color: var(--bronze); background: linear-gradient(160deg, rgba(122,32,48,.25), rgba(14,22,40,.97)); box-shadow: 0 8px 32px rgba(0,0,0,.6); }
     .role-icon { font-size: 4rem; }
     .role-name { font-family: 'Cinzel', serif; font-size: 1.4rem; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; }
@@ -153,7 +162,7 @@
     .role-card.fascist .role-name { color: var(--burg-light); }
     .role-card.hitler .role-name { color: var(--bronze-light); }
     .role-desc { font-style: italic; color: var(--ivory-dim); font-size: .9rem; padding: 0 16px; }
-    .fascist-knowledge { background: rgba(122,32,48,.12); border: 1px solid rgba(122,32,48,.4); padding: 16px 24px; max-width: 400px; width: 100%; border-radius: 8px; }
+    .fascist-knowledge { background: #181426; border: 1px solid rgba(122,32,48,.4); padding: 16px 24px; max-width: 400px; width: 100%; border-radius: 8px; }
     .fascist-knowledge h3 { font-family: 'Cinzel', serif; color: var(--burg-light); font-size: .82rem; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 10px; }
     .fascist-knowledge p { color: var(--ivory); font-size: 1rem; margin-bottom: 4px; }
     .night-hint { color: rgba(232,224,212,.4); font-style: italic; font-size: .9rem; max-width: 360px; }
@@ -161,7 +170,7 @@
     /* ─── STATUS BAR ─────────────────────────────────────────── */
     .status-bar {
       display: flex; align-items: center; gap: 16px; padding: 9px 16px;
-      background: rgba(14,22,40,.6); border-bottom: 1px solid var(--panel-border);
+      background: #131A2E; border-bottom: 1px solid var(--panel-border);
       flex-wrap: wrap; font-size: .85rem;
     }
     .status-item { display: flex; align-items: center; gap: 6px; color: var(--ivory-dim); }
@@ -200,8 +209,8 @@
     /* ─── POLICY TRACKS ──────────────────────────────────────── */
     .policy-tracks { display: flex; flex-direction: column; gap: 12px; }
     .policy-track { padding: 16px; border-radius: 8px; }
-    .liberal-track { background: rgba(107,143,173,.1); border: 1px solid rgba(107,143,173,.3); }
-    .fascist-track { background: rgba(122,32,48,.12); border: 1px solid rgba(122,32,48,.35); }
+    .liberal-track { background: #131B26; border: 1px solid rgba(107,143,173,.3); }
+    .fascist-track { background: #181426; border: 1px solid rgba(122,32,48,.35); }
     .track-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
     .track-label { font-family: 'Cinzel', serif; font-size: .7rem; letter-spacing: .15em; text-transform: uppercase; font-weight: 700; }
     .track-label.liberal { color: var(--steel-light); }
@@ -211,14 +220,14 @@
     .track-count.fascist { color: var(--burg-light); }
     .policy-slots { display: flex; gap: 6px; }
     .policy-slot { flex: 1; height: 44px; border: 1px solid; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; transition: all .3s; position: relative; border-radius: 4px; }
-    .liberal-slot { border-color: rgba(107,143,173,.22); background: rgba(107,143,173,.05); }
-    .liberal-slot.filled { background: linear-gradient(135deg,#4A7A9B,var(--steel-light)); border-color: var(--steel); box-shadow: 0 2px 10px rgba(0,0,0,.35); }
-    .fascist-slot { border-color: rgba(122,32,48,.2); background: rgba(122,32,48,.04); }
-    .fascist-slot.filled { background: linear-gradient(135deg, var(--burg), var(--burg-light)); border-color: var(--burg-light); box-shadow: 0 2px 10px rgba(0,0,0,.35); }
+    .liberal-slot { border-color: rgba(107,143,173,.22); background: #101828; }
+    .liberal-slot.filled { background: linear-gradient(135deg, #4A7A9B 0%, #8AAEC8 100%); border-color: var(--steel); box-shadow: 0 2px 10px rgba(0,0,0,.35); }
+    .fascist-slot { border-color: #221527; background: #101727; }
+    .fascist-slot.filled { background: linear-gradient(135deg, #7A2030 0%, #9B3040 100%); border-color: var(--burg-light); box-shadow: 0 2px 10px rgba(0,0,0,.35); }
     .action-badge { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-family: 'Cinzel', serif; font-size: .44rem; letter-spacing: .05em; color: var(--ivory-faint); white-space: nowrap; text-transform: uppercase; }
 
     /* ─── ELECTION TRACKER ───────────────────────────────────── */
-    .election-tracker { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: rgba(176,141,87,.07); border: 1px solid rgba(176,141,87,.22); border-radius: 8px; margin-top: 12px; }
+    .election-tracker { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: #131A2C; border: 1px solid rgba(176,141,87,.22); border-radius: 8px; margin-top: 12px; }
     .tracker-label { font-family: 'Cinzel', serif; font-size: .66rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ivory-dim); flex-shrink: 0; }
     .tracker-dots { display: flex; gap: 8px; flex: 1; }
     .tracker-dot { width: 20px; height: 20px; border-radius: 50%; border: 1px solid rgba(176,141,87,.28); background: rgba(176,141,87,.05); transition: all .3s; }
@@ -232,7 +241,7 @@
     .vote-gov-roles { font-size: .72rem; color: rgba(232,224,212,.3); font-family: 'Cinzel', serif; letter-spacing: .08em; }
     .vote-status-row { display: flex; align-items: center; gap: 8px; font-size: .82rem; color: var(--ivory-dim); font-style: italic; }
     .vote-confirm { font-family: 'Cinzel', serif; font-size: .78rem; letter-spacing: .08em; padding: 8px 18px; border: 1px solid; border-radius: 6px; }
-    .vote-confirm.ja { color: var(--green-pass); border-color: rgba(78,154,110,.4); background: rgba(78,154,110,.08); }
+    .vote-confirm.ja { color: var(--green-pass); border-color: rgba(78,154,110,.4); background: #121E1C; }
     .vote-confirm.nein { color: var(--burg-light); border-color: rgba(122,32,48,.5); background: rgba(122,32,48,.08); }
     .vote-buttons { display: flex; gap: 10px; flex-direction: column; width: 100%; }
     .vote-result-breakdown { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 6px; }
@@ -250,8 +259,8 @@
       display: flex; align-items: center; gap: 14px; padding: 0 16px;
       cursor: pointer; transition: all .2s;
     }
-    .policy-card.liberal-policy { border-color: var(--steel); color: var(--steel-light); background: linear-gradient(160deg, rgba(107,143,173,.18), rgba(14,22,40,.9)); }
-    .policy-card.fascist-policy { border-color: var(--burg-light); color: var(--burg-light); background: linear-gradient(160deg, rgba(122,32,48,.2), rgba(14,22,40,.9)); }
+    .policy-card.liberal-policy { border-color: var(--steel); color: var(--steel-light); background: linear-gradient(160deg, #172031, rgba(14,22,40,.9)); }
+    .policy-card.fascist-policy { border-color: var(--burg-light); color: var(--burg-light); background: linear-gradient(160deg, #221527, rgba(14,22,40,.9)); }
     .policy-card:hover { transform: translateX(4px); box-shadow: 0 4px 18px rgba(0,0,0,.5); }
     .policy-card-icon { font-size: 1.4rem; }
     .policy-card-type { font-family: 'Cinzel', serif; font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; }
@@ -259,28 +268,28 @@
     .policy-card:hover .policy-card-action { opacity: 1; color: var(--burg-light); }
     .peek-cards { display: flex; gap: 10px; justify-content: center; margin: 12px 0; }
     .peek-card { width: 58px; height: 84px; border: 1px solid; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; border-radius: 6px; }
-    .peek-card.liberal { border-color: var(--steel); background: rgba(107,143,173,.18); }
+    .peek-card.liberal { border-color: var(--steel); background: #172031; }
     .peek-card.fascist { border-color: var(--burg-light); background: rgba(122,32,48,.18); }
 
     /* ─── VETO ───────────────────────────────────────────────── */
-    .veto-area { background: rgba(176,141,87,.07); border: 1px solid rgba(176,141,87,.3); padding: 14px 20px; text-align: center; border-radius: 8px; width: 100%; }
+    .veto-area { background: #131A2C; border: 1px solid rgba(176,141,87,.3); padding: 14px 20px; text-align: center; border-radius: 8px; width: 100%; }
     .veto-title { font-family: 'Cinzel', serif; font-size: .76rem; letter-spacing: .1em; color: var(--bronze-light); text-transform: uppercase; margin-bottom: 8px; }
     .veto-sub { font-size: .82rem; color: rgba(232,224,212,.6); margin-bottom: 8px; }
 
     /* ─── PLAYER GRID ────────────────────────────────────────── */
-    .nomination-prompt { background: rgba(176,141,87,.07); border: 1px solid rgba(176,141,87,.2); border-left: 3px solid var(--bronze); padding: 10px 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; border-radius: 0 6px 6px 0; }
+    .nomination-prompt { background: #131A2C; border: 1px solid rgba(176,141,87,.2); border-left: 3px solid var(--bronze); padding: 10px 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; border-radius: 0 6px 6px 0; }
     .nomination-prompt-icon { font-size: 1.1rem; }
     .nomination-prompt-text { font-size: .86rem; color: var(--ivory-dim); font-style: italic; flex: 1; }
     .nomination-prompt-text strong { color: var(--bronze-light); font-style: normal; }
     .player-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px,1fr)); gap: 8px; }
     .player-card {
-      padding: 12px; border: 1px solid rgba(176,141,87,.12); background: rgba(255,255,255,.02);
+      padding: 12px; border: 1px solid #161E31; background: #101828;
       text-align: center; cursor: default; transition: all .2s; position: relative; border-radius: 8px;
     }
     .player-card.selectable { cursor: pointer; border-color: rgba(176,141,87,.3); }
-    .player-card.selectable:hover { border-color: var(--bronze); background: rgba(176,141,87,.07); transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+    .player-card.selectable:hover { border-color: var(--bronze); background: #131A2C; transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,.35); }
     .player-card.is-president { border-color: var(--bronze); background: rgba(176,141,87,.09); }
-    .player-card.is-chancellor { border-color: var(--steel); background: rgba(107,143,173,.1); }
+    .player-card.is-chancellor { border-color: var(--steel); background: #131B26; }
     .player-card.is-dead { opacity: .3; }
     .player-card.is-me { border-left: 3px solid var(--bronze); }
     .player-card.not-eligible { opacity: .35; cursor: not-allowed; }
@@ -313,7 +322,7 @@
     .identity-hidden-text { color: rgba(232,224,212,.4); font-style: italic; font-size: .9rem; text-align: center; margin-top: 8px; }
     .identity-card { max-width: 280px; width: 100%; padding: 24px 20px; border: 2px solid; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; position: relative; border-radius: 14px; }
     .identity-card.liberal { border-color: var(--steel); background: linear-gradient(160deg, rgba(107,143,173,.2), var(--panel)); }
-    .identity-card.fascist { border-color: var(--burg); background: linear-gradient(160deg, rgba(122,32,48,.2), var(--panel)); }
+    .identity-card.fascist { border-color: var(--burg); background: linear-gradient(160deg, #221527, var(--panel)); }
     .identity-card.hitler { border-color: var(--bronze); background: linear-gradient(160deg, rgba(122,32,48,.18), var(--panel)); }
     .identity-eyebrow { font-family: 'Cinzel', serif; font-size: .58rem; letter-spacing: .22em; text-transform: uppercase; color: var(--ivory-faint); }
     .identity-icon { font-size: 3rem; }
@@ -336,7 +345,7 @@
     .win-title.fascist { color: var(--burg-light); }
     .win-reason { font-style: italic; color: var(--ivory-dim); font-size: 1.2rem; }
     .reveal-grid { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; max-width: 600px; }
-    .reveal-item { padding: 10px 16px; border: 1px solid var(--panel-border); text-align: center; min-width: 100px; background: rgba(255,255,255,.02); border-radius: 8px; }
+    .reveal-item { padding: 10px 16px; border: 1px solid var(--panel-border); text-align: center; min-width: 100px; background: #101828; border-radius: 8px; }
     .reveal-item .reveal-name { font-size: .95rem; color: var(--ivory); }
     .reveal-item .reveal-role { font-family: 'Cinzel', serif; font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; margin-top: 4px; }
     .win-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
@@ -460,7 +469,7 @@ function shuffle(arr) {
 }
 
 function generateCode() {
-  return Math.random().toString(36).substring(2,7).toUpperCase();
+  return Math.random().toString(36).substring(2,6).toUpperCase();
 }
 
 function assignRoles(playerIds) {
@@ -1014,6 +1023,7 @@ async function enactPolicy(policy, deck, discard, chaos, tracker, presName, chan
 
 async function executePeek() {
   const gs = APP.gameState;
+  if (gs.president_id !== APP.myId) return;
   let deck = [...gs.draw_pile];
   if (deck.length < 3) deck = shuffle([...deck, ...gs.discard_pile]);
   const peeked = deck.slice(0,3);
@@ -1027,6 +1037,7 @@ async function executePeek() {
 
 async function executeInvestigate(targetId) {
   const gs = APP.gameState;
+  if (gs.president_id !== APP.myId) return;
   const target = APP.players.find(p=>p.id===targetId);
   const party = APP.roles[targetId]==='liberal' ? 'liberal' : 'fascist';
   const invPres = APP.players.find(p=>p.id===gs.president_id)?.name||'President';
@@ -1039,6 +1050,7 @@ async function executeInvestigate(targetId) {
 
 async function executeSpecialElect(targetId) {
   const gs = APP.gameState;
+  if (gs.president_id !== APP.myId) return;
   const target = APP.players.find(p=>p.id===targetId);
   const specPres = APP.players.find(p=>p.id===gs.president_id)?.name||'President';
   let newGs = addLog(gs, `${specPres} (President) called a special election: ${target?.name} is the next President.`);
@@ -1050,6 +1062,7 @@ async function executeSpecialElect(targetId) {
 
 async function executeKill(targetId) {
   const gs = APP.gameState;
+  if (gs.president_id !== APP.myId) return;
   const target = APP.players.find(p=>p.id===targetId);
   const killPres = APP.players.find(p=>p.id===gs.president_id)?.name||'President';
   let newGs = addLog(gs, `${killPres} (President) executed ${target?.name}.`);
@@ -1074,6 +1087,7 @@ async function executeKill(targetId) {
 
 async function doneWithExecutive() {
   const gs = APP.gameState;
+  if (gs.president_id !== APP.myId) return;
   const nextPres = nextPresId(gs.president_id, APP.players);
   const newGs = { ...gs, phase:'nomination', executive_action:null, president_id:nextPres, chancellor_id:null, nominated_chancellor:null, peek_result:null, investigate_result:null };
   APP.gameState = newGs;
@@ -1083,6 +1097,7 @@ async function doneWithExecutive() {
 
 async function requestVeto() {
   const gs = APP.gameState;
+  if (gs.chancellor_id !== APP.myId) return;
   const vetoChancName = APP.players.find(p=>p.id===gs.chancellor_id)?.name||'Chancellor';
   let newGs = addLog(gs, `${vetoChancName} (Chancellor) requested a veto.`);
   newGs = { ...newGs, veto_requested:true };
@@ -1093,6 +1108,7 @@ async function requestVeto() {
 
 async function respondVeto(accept) {
   const gs = APP.gameState;
+  if (gs.president_id !== APP.myId) return;
   if (accept) {
     const newTracker = gs.election_tracker+1;
     const vetoPres = APP.players.find(p=>p.id===gs.president_id)?.name||'President';
@@ -1158,7 +1174,7 @@ function leaveRoom() {
 // ═══════════════════════════════════════════════════════════════
 (function readUrlParams() {
   const code = new URLSearchParams(window.location.search).get('room');
-  if (code) APP.joinCodeInput = code.toUpperCase().slice(0,5);
+  if (code) APP.joinCodeInput = code.toUpperCase().slice(0,4);
 })();
 
 // ═══════════════════════════════════════════════════════════════
@@ -1241,13 +1257,10 @@ function buildLobby() {
   const joinNameInput = h('input',{class:'input',placeholder:'Enter your name',value:APP.myName,maxlength:20});
   joinNameInput.addEventListener('input', e=>{ APP.myName=e.target.value; sessionStorage.setItem('sh_myName', e.target.value); });
 
-  const joinCodeInput = h('input',{class:'input input-code',placeholder:'XXXXX',value:APP.joinCodeInput,maxlength:5});
+  const joinCodeInput = h('input',{class:'input input-code',placeholder:'XXXX',value:APP.joinCodeInput,maxlength:4});
   joinCodeInput.addEventListener('input', e=>{ APP.joinCodeInput=e.target.value.toUpperCase(); });
 
   return h('div',{class:'lobby'},
-    h('div',{class:'lobby-hero'},
-      h('p',{},"Germany, 1932. A fragile democracy teeters on the edge. Liberals fight to save it. Fascists scheme to destroy it. And Hitler hides in plain sight.")
-    ),
     h('div',{class:'lobby-cards'},
       h('div',{class:'panel lobby-card'},
         h('div',{class:'panel-title'},'Create Room'),
@@ -1270,7 +1283,10 @@ function buildLobby() {
         h('button',{class:'btn btn-secondary btn-full',onClick:joinRoom},'Join Room')
       )
     ),
-    h('p',{class:'lobby-footer'},'5–10 players · Private rooms · Faithful rules')
+    h('p',{class:'lobby-footer'},'5–10 players · Private rooms · Faithful rules'),
+    h('div',{class:'lobby-hero'},
+      h('p',{},"Germany, 1932. A fragile democracy teeters on the edge. Liberals fight to save it. Fascists scheme to destroy it. And Hitler hides in plain sight.")
+    )
   );
 }
 
