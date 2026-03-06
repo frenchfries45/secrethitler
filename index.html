@@ -566,6 +566,279 @@ function render() {
 }
 
 // ═══════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════
+// SOUND ENGINE — Web Audio API, 1930s historical tone
+// ═══════════════════════════════════════════════════════════════
+const SFX = (() => {
+  let ctx = null;
+
+  function getCtx() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+
+  function master(vol = 0.5) {
+    const g = getCtx().createGain();
+    g.gain.setValueAtTime(vol, getCtx().currentTime);
+    g.connect(getCtx().destination);
+    return g;
+  }
+
+  // ── Gavel strike — sharp woodblock thud ──────────────────────
+  function gavel(vol = 0.6) {
+    const c = getCtx();
+    const t = c.currentTime;
+    const g = master(vol);
+
+    // Thud: short filtered noise burst
+    const buf = c.createBuffer(1, c.sampleRate * 0.15, c.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 3);
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const filter = c.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(300, t);
+    src.connect(filter);
+    filter.connect(g);
+    src.start(t);
+
+    // Click transient
+    const osc = c.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(180, t);
+    osc.frequency.exponentialRampToValueAtTime(60, t + 0.08);
+    const og = c.createGain();
+    og.gain.setValueAtTime(0.8, t);
+    og.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    osc.connect(og); og.connect(g);
+    osc.start(t); osc.stop(t + 0.12);
+  }
+
+  // ── Paper shuffle — nomination / policy draw ─────────────────
+  function paperShuffle(vol = 0.35) {
+    const c = getCtx();
+    const t = c.currentTime;
+    const g = master(vol);
+    const duration = 0.4;
+    const buf = c.createBuffer(1, c.sampleRate * duration, c.sampleRate);
+    const data = buf.getChannelData(0);
+    // Layered noise with amplitude modulation to mimic paper friction
+    for (let i = 0; i < data.length; i++) {
+      const progress = i / data.length;
+      const env = Math.sin(progress * Math.PI) * 0.7 + 0.3 * Math.sin(progress * Math.PI * 4);
+      data[i] = (Math.random() * 2 - 1) * env * (1 - progress * 0.4);
+    }
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const filter = c.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(3000, t);
+    filter.Q.setValueAtTime(0.5, t);
+    src.connect(filter); filter.connect(g);
+    src.start(t);
+  }
+
+  // ── Typewriter stamp — voting click ─────────────────────────
+  function typewriterClick(vol = 0.4) {
+    const c = getCtx();
+    const t = c.currentTime;
+    const g = master(vol);
+
+    // Sharp metallic click
+    const buf = c.createBuffer(1, c.sampleRate * 0.05, c.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      const env = Math.pow(1 - i / data.length, 4);
+      data[i] = (Math.random() * 2 - 1) * env;
+    }
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const filter = c.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.setValueAtTime(800, t);
+    src.connect(filter); filter.connect(g);
+    src.start(t);
+
+    // Mechanical resonance tone
+    const osc = c.createOscillator();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(440, t);
+    const og = c.createGain();
+    og.gain.setValueAtTime(0.15, t);
+    og.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+    osc.connect(og); og.connect(g);
+    osc.start(t); osc.stop(t + 0.04);
+  }
+
+  // ── Seal stamp — policy enacted ─────────────────────────────
+  function sealStamp(type = 'fascist', vol = 0.55) {
+    const c = getCtx();
+    const t = c.currentTime;
+    const g = master(vol);
+
+    const freq = type === 'liberal' ? 220 : 140;
+    const color = type === 'liberal' ? 600 : 200;
+
+    // Heavy thud
+    const buf = c.createBuffer(1, c.sampleRate * 0.25, c.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      const env = Math.pow(1 - i / data.length, 2.5);
+      data[i] = (Math.random() * 2 - 1) * env;
+    }
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const filter = c.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(color, t);
+    src.connect(filter); filter.connect(g);
+    src.start(t);
+
+    // Resonant tone
+    const osc = c.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, t);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.5, t + 0.3);
+    const og = c.createGain();
+    og.gain.setValueAtTime(0.6, t);
+    og.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+    osc.connect(og); og.connect(g);
+    osc.start(t); osc.stop(t + 0.3);
+  }
+
+  // ── Bell chime — game start / role reveal ────────────────────
+  function bellChime(vol = 0.45) {
+    const c = getCtx();
+    const t = c.currentTime;
+    const g = master(vol);
+
+    // Three ascending bell tones — telegraph/town hall feel
+    [440, 554, 659].forEach((freq, i) => {
+      const osc = c.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t + i * 0.18);
+      // Add slight inharmonic overtone for metal bell character
+      const osc2 = c.createOscillator();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(freq * 2.756, t + i * 0.18);
+      const og = c.createGain();
+      og.gain.setValueAtTime(0, t + i * 0.18);
+      og.gain.linearRampToValueAtTime(0.5, t + i * 0.18 + 0.01);
+      og.gain.exponentialRampToValueAtTime(0.001, t + i * 0.18 + 0.8);
+      const og2 = c.createGain();
+      og2.gain.setValueAtTime(0, t + i * 0.18);
+      og2.gain.linearRampToValueAtTime(0.15, t + i * 0.18 + 0.01);
+      og2.gain.exponentialRampToValueAtTime(0.001, t + i * 0.18 + 0.5);
+      osc.connect(og); og.connect(g);
+      osc2.connect(og2); og2.connect(g);
+      osc.start(t + i * 0.18); osc.stop(t + i * 0.18 + 0.8);
+      osc2.start(t + i * 0.18); osc2.stop(t + i * 0.18 + 0.8);
+    });
+  }
+
+  // ── Gunshot — execution ──────────────────────────────────────
+  function gunshot(vol = 0.5) {
+    const c = getCtx();
+    const t = c.currentTime;
+    const g = master(vol);
+
+    // Sharp crack
+    const buf = c.createBuffer(1, c.sampleRate * 0.3, c.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      const env = i < 50
+        ? i / 50
+        : Math.pow(1 - (i - 50) / (data.length - 50), 1.5);
+      data[i] = (Math.random() * 2 - 1) * env;
+    }
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    // Two filters: crack (high) + body (low)
+    const crack = c.createBiquadFilter();
+    crack.type = 'highpass';
+    crack.frequency.setValueAtTime(1200, t);
+    const body = c.createBiquadFilter();
+    body.type = 'lowpass';
+    body.frequency.setValueAtTime(400, t);
+    const crackGain = c.createGain(); crackGain.gain.setValueAtTime(0.6, t);
+    const bodyGain = c.createGain(); bodyGain.gain.setValueAtTime(0.9, t);
+    src.connect(crack); crack.connect(crackGain); crackGain.connect(g);
+    src.connect(body); body.connect(bodyGain); bodyGain.connect(g);
+    src.start(t);
+
+    // Reverb tail
+    const rev = c.createBuffer(1, c.sampleRate * 0.4, c.sampleRate);
+    const revData = rev.getChannelData(0);
+    for (let i = 0; i < revData.length; i++) revData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / revData.length, 3) * 0.15;
+    const revSrc = c.createBufferSource();
+    revSrc.buffer = rev;
+    const revFilter = c.createBiquadFilter();
+    revFilter.type = 'lowpass';
+    revFilter.frequency.setValueAtTime(800, t + 0.05);
+    revSrc.connect(revFilter); revFilter.connect(g);
+    revSrc.start(t + 0.05);
+  }
+
+  // ── Magnifying glass click — peek ───────────────────────────
+  function glassClick(vol = 0.35) {
+    const c = getCtx();
+    const t = c.currentTime;
+    const g = master(vol);
+    // Light crystalline tap
+    [1200, 1800, 2400].forEach((freq, i) => {
+      const osc = c.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t + i * 0.06);
+      const og = c.createGain();
+      og.gain.setValueAtTime(0.3, t + i * 0.06);
+      og.gain.exponentialRampToValueAtTime(0.001, t + i * 0.06 + 0.25);
+      osc.connect(og); og.connect(g);
+      osc.start(t + i * 0.06); osc.stop(t + i * 0.06 + 0.25);
+    });
+  }
+
+  // ── Dramatic sting — tension / investigate ───────────────────
+  function tensionSting(vol = 0.4) {
+    const c = getCtx();
+    const t = c.currentTime;
+    const g = master(vol);
+    // Low rumble rising
+    const osc = c.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(55, t);
+    osc.frequency.linearRampToValueAtTime(110, t + 0.5);
+    const filter = c.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(200, t);
+    filter.frequency.linearRampToValueAtTime(600, t + 0.5);
+    const og = c.createGain();
+    og.gain.setValueAtTime(0, t);
+    og.gain.linearRampToValueAtTime(0.4, t + 0.1);
+    og.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+    osc.connect(filter); filter.connect(og); og.connect(g);
+    osc.start(t); osc.stop(t + 0.55);
+  }
+
+  // ── Public API ───────────────────────────────────────────────
+  return {
+    nomination:   () => { try { paperShuffle(); setTimeout(() => gavel(0.3), 220); } catch(e){} },
+    voteJa:       () => { try { typewriterClick(0.45); } catch(e){} },
+    voteNein:     () => { try { typewriterClick(0.3); setTimeout(() => typewriterClick(0.2), 80); } catch(e){} },
+    voteResult:   (passed) => { try { passed ? gavel(0.55) : gavel(0.3); } catch(e){} },
+    policyLib:    () => { try { paperShuffle(0.25); setTimeout(() => sealStamp('liberal', 0.5), 300); } catch(e){} },
+    policyFas:    () => { try { paperShuffle(0.25); setTimeout(() => sealStamp('fascist', 0.6), 300); } catch(e){} },
+    roleReveal:   () => { try { bellChime(); } catch(e){} },
+    gameStart:    () => { try { bellChime(0.5); setTimeout(() => gavel(0.4), 600); } catch(e){} },
+    kill:         () => { try { gunshot(); } catch(e){} },
+    peek:         () => { try { glassClick(); } catch(e){} },
+    investigate:  () => { try { tensionSting(); } catch(e){} },
+    specialElect: () => { try { gavel(0.5); setTimeout(() => bellChime(0.3), 300); } catch(e){} },
+  };
+})();
+
 // NOTIFICATION
 // ═══════════════════════════════════════════════════════════════
 function notify(msg, duration=3500) {
@@ -846,6 +1119,7 @@ async function nominateChancellor(playerId) {
   const president = APP.players.find(p=>p.id===gs.president_id);
   let newGs = addLog(gs, `${president?.name} nominated ${nominee?.name} as Chancellor.`);
   newGs = { ...newGs, nominated_chancellor: playerId, phase: 'vote' };
+  SFX.nomination();
   APP.gameState = newGs;
   await pushRoomState({ game_state: newGs });
   render();
@@ -904,6 +1178,7 @@ async function resolveVote(gs, votes, passed) {
       setTimeout(async () => { APP.winState={winner:'fascist',reason:'Hitler was elected Chancellor!'}; APP.screen='win'; await deleteRoom(); render(); }, 1800);
       return newGs;
     }
+    SFX.voteResult(true);
     let newGs = addLog(gs, `Vote passed. ${president?.name} & ${nominated?.name} form the government.`);
     newGs = { ...newGs, phase:'vote_result', chancellor_id:gs.nominated_chancellor, election_tracker:0, votes,
       current_pres_name: president?.name || 'President',
@@ -915,6 +1190,7 @@ async function resolveVote(gs, votes, passed) {
     return newGs;
   } else {
     const newTracker = gs.election_tracker + 1;
+    SFX.voteResult(false);
     let newGs = addLog(gs, `Vote failed. ${president?.name} & ${nominated?.name} rejected. Election tracker: ${newTracker}.`);
     if (newTracker >= 3) {
       newGs = addLog(newGs, 'Country in chaos! Top policy auto-enacted.');
@@ -997,6 +1273,7 @@ async function enactPolicy(policy, deck, discard, chaos, tracker, presName, chan
   // Use passed-in names, then gs snapshot, then live lookup — in priority order
   const enactPres  = presName  || gs.current_pres_name  || APP.players.find(p=>p.id===gs.president_id)?.name  || 'President';
   const enactChanc = chancName || gs.current_chanc_name || APP.players.find(p=>p.id===gs.chancellor_id)?.name || 'Chancellor';
+  if (policy === 'liberal') SFX.policyLib(); else SFX.policyFas();
   let newGs = addLog(gs, `📜 ${policy.toUpperCase()} policy enacted! (${enactPres} & ${enactChanc})`);
   const win = checkWin({ ...gs, liberal_policies:newLib, fascist_policies:newFas });
   let execAction = (!chaos && policy==='fascist') ? getExecAction(newFas, APP.players.length) : null;
@@ -1024,6 +1301,7 @@ async function enactPolicy(policy, deck, discard, chaos, tracker, presName, chan
 async function executePeek() {
   const gs = APP.gameState;
   if (gs.president_id !== APP.myId) return;
+  SFX.peek();
   let deck = [...gs.draw_pile];
   if (deck.length < 3) deck = shuffle([...deck, ...gs.discard_pile]);
   const peeked = deck.slice(0,3);
@@ -1038,6 +1316,7 @@ async function executePeek() {
 async function executeInvestigate(targetId) {
   const gs = APP.gameState;
   if (gs.president_id !== APP.myId) return;
+  SFX.investigate();
   const target = APP.players.find(p=>p.id===targetId);
   const party = APP.roles[targetId]==='liberal' ? 'liberal' : 'fascist';
   const invPres = APP.players.find(p=>p.id===gs.president_id)?.name||'President';
@@ -1051,6 +1330,7 @@ async function executeInvestigate(targetId) {
 async function executeSpecialElect(targetId) {
   const gs = APP.gameState;
   if (gs.president_id !== APP.myId) return;
+  SFX.specialElect();
   const target = APP.players.find(p=>p.id===targetId);
   const specPres = APP.players.find(p=>p.id===gs.president_id)?.name||'President';
   let newGs = addLog(gs, `${specPres} (President) called a special election: ${target?.name} is the next President.`);
@@ -1063,6 +1343,7 @@ async function executeSpecialElect(targetId) {
 async function executeKill(targetId) {
   const gs = APP.gameState;
   if (gs.president_id !== APP.myId) return;
+  SFX.kill();
   const target = APP.players.find(p=>p.id===targetId);
   const killPres = APP.players.find(p=>p.id===gs.president_id)?.name||'President';
   let newGs = addLog(gs, `${killPres} (President) executed ${target?.name}.`);
@@ -1371,6 +1652,7 @@ function buildNight() {
   let btn;
   if (!APP.nightRevealed) {
     btn = h('button', {class:'btn btn-primary btn-lg', onClick: async () => {
+      SFX.roleReveal();
       APP.nightRevealed = true;
       APP.roleVisible = true;
       const gs = APP.gameState;
@@ -1391,6 +1673,7 @@ function buildNight() {
         class: 'btn btn-primary btn-lg',
         disabled: !allReady,
         onClick: async () => {
+          SFX.gameStart();
           APP.roleVisible = true;
           APP.screen = 'game';
           await pushRoomState({ screen: 'game' });
@@ -1554,8 +1837,8 @@ function buildActionTab() {
         content.push(
           h('p',{class:'text-dim italic',style:{fontSize:'.85rem'}},'Do you approve this government?'),
           h('div',{class:'vote-buttons'},
-            h('button',{class:'btn btn-liberal vote-btn btn-full',onClick:()=>castVote('ja')},'👍 Ja!'),
-            h('button',{class:'btn btn-fascist vote-btn btn-full',onClick:()=>castVote('nein')},'👎 Nein!')
+            h('button',{class:'btn btn-liberal vote-btn btn-full',onClick:()=>{ SFX.voteJa(); castVote('ja'); }},'👍 Ja!'),
+            h('button',{class:'btn btn-fascist vote-btn btn-full',onClick:()=>{ SFX.voteNein(); castVote('nein'); }},'👎 Nein!')
           )
         );
       } else {
