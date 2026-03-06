@@ -550,17 +550,37 @@ function subscribeToRoom(code) {
 
 function onRoomUpdate(row) {
   const prevPhase = APP.gameState?.phase;
+
   APP.players   = row.players   || [];
   APP.roles     = row.roles     || {};
   APP.gameState = row.game_state|| null;
 
-  // Derive fascist knowledge for my player
-  if (APP.roles && Object.keys(APP.roles).length > 0) {
+  // Derive fascist knowledge for THIS player whenever roles arrive.
+  // Fascists always see all other fascists + Hitler.
+  // Hitler sees fascists only in 5-6 player games.
+  // Liberals see nobody.
+  if (Object.keys(APP.roles).length > 0) {
     const myRole = APP.roles[APP.myId];
-    if (myRole === 'fascist' || (myRole === 'hitler' && APP.players.length <= 6)) {
+    if (myRole === 'fascist') {
       APP.fascistKnowledge = Object.entries(APP.roles)
-        .filter(([id, r]) => r === 'fascist' || r === 'hitler')
+        .filter(([id, r]) => (r === 'fascist' || r === 'hitler') && id !== APP.myId)
         .map(([id, r]) => ({ id, role:r, name: APP.players.find(p=>p.id===id)?.name||'?' }));
+    } else if (myRole === 'hitler' && APP.players.length <= 6) {
+      APP.fascistKnowledge = Object.entries(APP.roles)
+        .filter(([id, r]) => r === 'fascist')
+        .map(([id, r]) => ({ id, role:'fascist', name: APP.players.find(p=>p.id===id)?.name||'?' }));
+    } else {
+      APP.fascistKnowledge = [];
+    }
+  }
+
+  // Sync screen from Supabase — drives all non-host transitions
+  if (row.screen && row.screen !== APP.screen) {
+    APP.screen = row.screen;
+    // Reset night reveal for everyone when entering night phase
+    if (row.screen === 'night') {
+      APP.nightRevealed = false;
+      APP.roleVisible = false;
     }
   }
 
@@ -574,23 +594,18 @@ function onRoomUpdate(row) {
     }
   }
 
-  if (row.screen && row.screen !== APP.screen) {
-    APP.screen = row.screen;
-    APP.nightRevealed = false;
-  }
-
-  // Check win
-  if (APP.gameState) {
+  // Check win — any client detects and shows win screen
+  if (APP.gameState && !APP.winState) {
     const win = checkWin(APP.gameState);
-    if (win && !APP.winState) {
+    if (win) {
       APP.winState = win;
       APP.screen = 'win';
     }
   }
 
-  // Host runs bots
+  // Host resolves vote when all players have voted
   if (APP.isHost && APP.gameState && APP.screen === 'game') {
-    runBotActions();
+    checkVoteTally();
   }
 
   render();
@@ -646,29 +661,20 @@ async function joinRoom() {
     const me = { id:APP.myId, name:APP.myName.trim(), alive:true };
     const updated = [...data.players, me];
     await db.from('rooms').update({ players: updated }).eq('code', code);
+    // Re-fetch so we have the updated player list
+    const { data: fresh } = await db.from('rooms').select().eq('code', code).single();
+    if (fresh) Object.assign(data, fresh);
   }
 
   APP.roomCode = code;
   APP.hostId = data.host_id;
   APP.isHost = data.host_id === APP.myId;
-  APP.players = data.players;
+  APP.players = data.players || [];
   APP.roles = data.roles || {};
   APP.gameState = data.game_state;
-  APP.screen = 'waiting';
+  // Use the screen stored in Supabase, not a hardcoded value
+  APP.screen = data.screen || 'waiting';
   subscribeToRoom(code);
-  render();
-}
-
-async function addBot() {
-  const botNames = ['Von Braun','Heydrich','Goebbels','Himmler','Röhm','Göring','Speer','Bormann','Hess','Ribbentrop'];
-  const used = APP.players.map(p=>p.name);
-  const available = botNames.filter(n=>!used.includes(n));
-  if (!available.length || APP.players.length>=10) { notify('Room is full'); return; }
-  const name = available[Math.floor(Math.random()*available.length)];
-  const id = Math.random().toString(36).substr(2,9);
-  const updated = [...APP.players, {id, name, alive:true, isBot:true}];
-  APP.players = updated;
-  await pushRoomState({ players: updated });
   render();
 }
 
@@ -708,12 +714,18 @@ async function startGame() {
   APP.screen = 'night';
   APP.nightRevealed = false;
 
-  // Derive fascist knowledge for host player
-  const myRole = APP.roles[APP.myId];
-  if (myRole === 'fascist' || (myRole === 'hitler' && APP.players.length <= 6)) {
-    APP.fascistKnowledge = Object.entries(APP.roles)
-      .filter(([,r]) => r==='fascist'||r==='hitler')
-      .map(([id,r]) => ({ id, role:r, name:APP.players.find(p=>p.id===id)?.name||'?' }));
+  // Derive fascist knowledge for host (same logic as onRoomUpdate)
+  const myRole = assignedRoles[APP.myId];
+  if (myRole === 'fascist') {
+    APP.fascistKnowledge = Object.entries(assignedRoles)
+      .filter(([id, r]) => (r === 'fascist' || r === 'hitler') && id !== APP.myId)
+      .map(([id, r]) => ({ id, role:r, name:APP.players.find(p=>p.id===id)?.name||'?' }));
+  } else if (myRole === 'hitler' && APP.players.length <= 6) {
+    APP.fascistKnowledge = Object.entries(assignedRoles)
+      .filter(([id, r]) => r === 'fascist')
+      .map(([id, r]) => ({ id, role:'fascist', name:APP.players.find(p=>p.id===id)?.name||'?' }));
+  } else {
+    APP.fascistKnowledge = [];
   }
 
   await pushRoomState({ roles: assignedRoles, game_state: gs, screen: 'night' });
@@ -743,29 +755,38 @@ async function castVote(vote) {
   const gs = APP.gameState;
   if (gs.votes[APP.myId] !== undefined) return;
 
-  let newVotes = { ...gs.votes, [APP.myId]: vote };
-
-  // Add bot votes
-  const botsToVote = APP.players.filter(p => p.alive && p.isBot && newVotes[p.id] === undefined);
-  botsToVote.forEach(bot => {
-    const botRole = APP.roles[bot.id];
-    const nomRole = APP.roles[gs.nominated_chancellor];
-    newVotes[bot.id] = botRole==='liberal'
-      ? (nomRole==='liberal'||Math.random()>.4 ? 'ja' : 'nein')
-      : (nomRole!=='liberal'||Math.random()>.3 ? 'ja' : 'nein');
-  });
-
-  const alive = APP.players.filter(p=>p.alive);
-  const allVoted = alive.every(p => newVotes[p.id] !== undefined);
+  // Each player submits their own vote
+  const newVotes = { ...gs.votes, [APP.myId]: vote };
   let newGs = { ...gs, votes: newVotes };
 
-  if (allVoted) {
-    const jas   = alive.filter(p=>newVotes[p.id]==='ja').length;
-    const neins = alive.filter(p=>newVotes[p.id]==='nein').length;
-    const passed = jas > neins;
-    newGs = await resolveVote(newGs, newVotes, passed);
+  // Check if all alive players have now voted — any client can detect this
+  // but only the host resolves it to avoid race conditions
+  const alive = APP.players.filter(p => p.alive);
+  const allVoted = alive.every(p => newVotes[p.id] !== undefined);
+
+  if (allVoted && APP.isHost) {
+    const jas  = alive.filter(p => newVotes[p.id] === 'ja').length;
+    const neins = alive.filter(p => newVotes[p.id] === 'nein').length;
+    newGs = await resolveVote(newGs, newVotes, jas > neins);
   }
 
+  APP.gameState = newGs;
+  await pushRoomState({ game_state: newGs });
+  render();
+}
+
+// Host watches incoming vote updates and resolves when all players have voted
+async function checkVoteTally() {
+  const gs = APP.gameState;
+  if (!APP.isHost || gs?.phase !== 'vote') return;
+  const alive = APP.players.filter(p => p.alive);
+  const allVoted = alive.every(p => gs.votes?.[p.id] !== undefined);
+  if (!allVoted) return;
+  // Already resolved if phase changed — guard against double-resolve
+  if (gs.phase !== 'vote') return;
+  const jas  = alive.filter(p => gs.votes[p.id] === 'ja').length;
+  const neins = alive.filter(p => gs.votes[p.id] === 'nein').length;
+  let newGs = await resolveVote({ ...gs }, gs.votes, jas > neins);
   APP.gameState = newGs;
   await pushRoomState({ game_state: newGs });
   render();
@@ -785,7 +806,9 @@ async function resolveVote(gs, votes, passed) {
     }
     let newGs = addLog(gs, `Vote passed. ${president?.name} & ${nominated?.name} form the government.`);
     newGs = { ...newGs, phase:'vote_result', chancellor_id:gs.nominated_chancellor, election_tracker:0, votes };
-    setTimeout(() => beginLegislation(), 2200);
+    setTimeout(async () => {
+      await beginLegislation();
+    }, 2200);
     return newGs;
   } else {
     const newTracker = gs.election_tracker + 1;
@@ -793,10 +816,11 @@ async function resolveVote(gs, votes, passed) {
     if (newTracker >= 3) {
       newGs = addLog(newGs, 'Country in chaos! Top policy auto-enacted.');
       newGs = { ...newGs, votes, phase:'vote_result' };
-      setTimeout(() => {
-        const deck = APP.gameState.draw_pile.length > 0 ? APP.gameState.draw_pile : shuffle(INITIAL_DECK);
+      setTimeout(async () => {
+        const cur = APP.gameState;
+        const deck = cur.draw_pile.length > 0 ? cur.draw_pile : shuffle(INITIAL_DECK);
         const [top, ...rest] = deck;
-        enactPolicy(top, rest, APP.gameState.discard_pile, true, 0);
+        await enactPolicy(top, rest, cur.discard_pile, true, 0);
       }, 2200);
       return newGs;
     }
@@ -804,6 +828,8 @@ async function resolveVote(gs, votes, passed) {
     newGs = { ...newGs, phase:'vote_result', election_tracker:newTracker, votes };
     setTimeout(async () => {
       const cur = APP.gameState;
+      // Guard: only advance if still in vote_result (not already moved on)
+      if (cur.phase !== 'vote_result') return;
       let next = { ...cur, phase:'nomination', round:cur.round+1, president_id:nextPres, nominated_chancellor:null, votes:{}, chancellor_id:null };
       APP.gameState = next;
       await pushRoomState({ game_state: next });
@@ -847,6 +873,7 @@ async function chancellorDiscard(idx) {
   APP.gameState = newGs;
   await enactPolicy(enacted, gs.draw_pile, [...gs.discard_pile, discarded], false, gs.election_tracker);
 }
+
 
 async function enactPolicy(policy, deck, discard, chaos, tracker) {
   const gs = APP.gameState;
@@ -1004,61 +1031,7 @@ function leaveRoom() {
   render();
 }
 
-// ═══════════════════════════════════════════════════════════════
-// BOT AI — host-driven
-// ═══════════════════════════════════════════════════════════════
-let _botTimer = null;
-function runBotActions() {
-  if (_botTimer) return;
-  _botTimer = setTimeout(async () => {
-    _botTimer = null;
-    const gs = APP.gameState;
-    if (!gs) return;
 
-    if (gs.phase === 'nomination') {
-      const pres = APP.players.find(p=>p.id===gs.president_id);
-      if (!pres?.isBot) return;
-      const botRole = APP.roles[pres.id];
-      const eligible = APP.players.filter(p => p.alive && p.id!==gs.president_id && p.id!==gs.last_president_id && p.id!==gs.last_chancellor_id);
-      if (!eligible.length) return;
-      let pick;
-      if (botRole==='liberal') {
-        const preferred = eligible.filter(p=>APP.roles[p.id]==='liberal');
-        pick = preferred.length ? preferred[Math.floor(Math.random()*preferred.length)] : eligible[Math.floor(Math.random()*eligible.length)];
-      } else {
-        const preferred = eligible.filter(p=>APP.roles[p.id]!=='liberal');
-        pick = preferred.length ? preferred[Math.floor(Math.random()*preferred.length)] : eligible[Math.floor(Math.random()*eligible.length)];
-      }
-      await nominateChancellor(pick.id);
-    }
-
-    if (gs.phase === 'president_discard') {
-      const pres = APP.players.find(p=>p.id===gs.president_id);
-      if (!pres?.isBot) return;
-      const botRole = APP.roles[pres.id];
-      const cards = gs.president_cards;
-      let idx;
-      if (botRole==='liberal') { const fi=cards.findIndex(c=>c==='fascist'); idx=fi>=0?fi:0; }
-      else { const li=cards.findIndex(c=>c==='liberal'); idx=li>=0?li:0; }
-      await presidentDiscard(idx);
-    }
-
-    if (gs.phase === 'chancellor_discard') {
-      const chanc = APP.players.find(p=>p.id===gs.chancellor_id);
-      if (!chanc?.isBot) return;
-      const botRole = APP.roles[chanc.id];
-      const cards = gs.chancellor_cards;
-      let idx;
-      if (botRole==='liberal') { const fi=cards.findIndex(c=>c==='fascist'); idx=fi>=0?fi:0; }
-      else { const li=cards.findIndex(c=>c==='liberal'); idx=li>=0?li:0; }
-      // Override chancellor check for bots
-      const tempMyId = APP.myId;
-      APP.myId = chanc.id; // let the bot "be" the chancellor
-      await chancellorDiscard(idx);
-      APP.myId = tempMyId;
-    }
-  }, 1200);
-}
 
 // ═══════════════════════════════════════════════════════════════
 // URL PARAM — auto-fill join code
@@ -1162,16 +1135,11 @@ function buildWaiting() {
       h('div',{class:'player-avatar'},p.name.charAt(0).toUpperCase()),
       h('span',{class:'player-name'},p.name+(p.id===APP.myId?' (You)':'')),
       p.id===APP.hostId ? h('span',{class:'player-host-badge'},'HOST') : null,
-      p.isBot ? h('span',{class:'text-faint italic',style:{marginLeft:'auto',fontSize:'.7rem',fontFamily:"'Cinzel',serif"}},'BOT') : null,
       APP.isHost && p.id!==APP.myId ? h('button',{class:'btn btn-ghost btn-sm',style:{marginLeft:'auto'},onClick:()=>removePlayer(p.id)},'✕') : null
     )
   );
 
   const hostControls = APP.isHost ? [
-    h('div',{class:'divider'}),
-    h('div',{class:'host-actions'},
-      h('button',{class:'btn btn-ghost btn-sm',onClick:addBot,disabled:APP.players.length>=10},'+ Add Bot')
-    ),
     h('div',{class:'divider'}),
     h('button',{
       class:'btn btn-primary btn-lg btn-full',
@@ -1224,7 +1192,12 @@ function buildNight() {
 
   const btn = !APP.nightRevealed
     ? h('button',{class:'btn btn-primary btn-lg',onClick:()=>{ APP.nightRevealed=true; APP.roleVisible=true; render(); }},"I've memorized my role")
-    : h('button',{class:'btn btn-primary btn-lg',onClick:async()=>{ APP.screen='game'; await pushRoomState({screen:'game'}); render(); }},'Begin the Game →');
+    : APP.isHost
+      ? h('button',{class:'btn btn-primary btn-lg',onClick:async()=>{ APP.roleVisible=true; APP.screen='game'; await pushRoomState({screen:'game'}); render(); }},'Begin the Game →')
+      : h('div',{style:{textAlign:'center'}},
+          h('p',{class:'text-dim italic',style:{marginTop:'8px'}},'Waiting for host to begin the game…'),
+          h('p',{class:'text-faint italic',style:{fontSize:'.8rem',marginTop:'6px'}},'Your role has been saved — you\'ll see it in the 🎭 My ID tab once the game starts.')
+        );
 
   return h('div',{class:'night-phase'},
     h('div',{class:'night-label'},'Your Role'),
