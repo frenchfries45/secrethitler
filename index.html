@@ -368,6 +368,36 @@
     .error-box { background: rgba(122,32,48,.15); border: 1px solid rgba(122,32,48,.4); border-radius: 8px; padding: 20px 28px; text-align: center; max-width: 400px; }
     .error-box p { color: var(--burg-light); font-size: 1rem; margin-bottom: 12px; }
 
+    /* ─── CONNECTION BAR ────────────────────────────────────── */
+    .conn-bar {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 500;
+      background: rgba(10,15,28,0.97); border-top: 1px solid rgba(176,141,87,.15);
+      padding: 6px 16px; display: flex; align-items: center; gap: 12px;
+      flex-wrap: wrap;
+    }
+    .conn-bar-label {
+      font-family: 'Cinzel', serif; font-size: .55rem; letter-spacing: .12em;
+      color: rgba(232,224,212,.25); text-transform: uppercase; flex-shrink: 0;
+    }
+    .conn-players { display: flex; gap: 10px; flex-wrap: wrap; flex: 1; }
+    .conn-player {
+      display: flex; align-items: center; gap: 5px;
+      font-family: 'Cinzel', serif; font-size: .6rem; letter-spacing: .05em;
+      color: rgba(232,224,212,.5);
+    }
+    .conn-dot {
+      width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+      transition: background .4s;
+    }
+    .conn-dot.online  { background: #4CAF50; box-shadow: 0 0 4px rgba(76,175,80,.6); }
+    .conn-dot.offline { background: #c0392b; box-shadow: 0 0 4px rgba(192,57,43,.4); }
+    .conn-room-code {
+      font-family: 'Cinzel', serif; font-size: .58rem; letter-spacing: .18em;
+      color: rgba(176,141,87,.35); flex-shrink: 0; margin-left: auto;
+    }
+    /* push page content above the fixed bar */
+    .app { padding-bottom: 32px; }
+
     /* ─── UTILITIES ──────────────────────────────────────────── */
     .text-bronze { color: var(--bronze-light); }
     .text-steel { color: var(--steel-light); }
@@ -462,10 +492,14 @@ function nextPresId(currentId, players) {
 // ═══════════════════════════════════════════════════════════════
 // APP STATE
 // ═══════════════════════════════════════════════════════════════
+// Restore persistent identity from sessionStorage so refresh doesn't lose the player
+const _savedId   = sessionStorage.getItem('sh_myId');
+const _savedName = sessionStorage.getItem('sh_myName');
+
 let APP = {
-  screen: 'lobby',            // lobby | loading | waiting | night | game | win
-  myId: Math.random().toString(36).substr(2,9),
-  myName: '',
+  screen: 'lobby',
+  myId: _savedId || Math.random().toString(36).substr(2,9),
+  myName: _savedName || '',
   joinCodeInput: '',
   roomCode: null,
   hostId: null,
@@ -486,7 +520,11 @@ let APP = {
   // subscription handle
   _channel: null,
   _notifTimer: null,
+  _presenceMap: {},   // playerId -> true if online
 };
+
+// Persist identity immediately (in case it was just generated)
+sessionStorage.setItem('sh_myId', APP.myId);
 
 // ═══════════════════════════════════════════════════════════════
 // RENDER ENGINE — tiny virtual-DOM-free renderer
@@ -542,10 +580,28 @@ async function deleteRoom() {
 
 function subscribeToRoom(code) {
   if (APP._channel) { db.removeChannel(APP._channel); APP._channel = null; }
-  APP._channel = db.channel('room:'+code)
+  APP._channel = db.channel('room:'+code, { config: { presence: { key: APP.myId } } })
     .on('postgres_changes', { event:'UPDATE', schema:'public', table:'rooms', filter:`code=eq.${code}` },
       payload => { onRoomUpdate(payload.new); })
-    .subscribe();
+    .on('presence', { event: 'sync' }, () => {
+      const state = APP._channel.presenceState();
+      APP._presenceMap = {};
+      Object.keys(state).forEach(key => { APP._presenceMap[key] = true; });
+      render();
+    })
+    .on('presence', { event: 'join' }, ({ key }) => {
+      APP._presenceMap[key] = true;
+      render();
+    })
+    .on('presence', { event: 'leave' }, ({ key }) => {
+      delete APP._presenceMap[key];
+      render();
+    })
+    .subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await APP._channel.track({ id: APP.myId, name: APP.myName, online: true });
+      }
+    });
 }
 
 function onRoomUpdate(row) {
@@ -616,6 +672,7 @@ function onRoomUpdate(row) {
 // ═══════════════════════════════════════════════════════════════
 async function createRoom() {
   if (!APP.myName.trim()) { notify('Enter your name first'); return; }
+  sessionStorage.setItem('sh_myName', APP.myName.trim());
   const code = generateCode();
   const me = { id:APP.myId, name:APP.myName.trim(), alive:true };
   APP.screen = 'loading';
@@ -642,12 +699,15 @@ async function createRoom() {
   APP.isHost = true;
   APP.players = [me];
   APP.screen = 'waiting';
+  sessionStorage.setItem('sh_room', code);
+  sessionStorage.setItem('sh_hostId', APP.myId);
   subscribeToRoom(code);
   render();
 }
 
 async function joinRoom() {
   if (!APP.myName.trim()) { notify('Enter your name first'); return; }
+  sessionStorage.setItem('sh_myName', APP.myName.trim());
   const code = APP.joinCodeInput.trim().toUpperCase();
   if (!code) { notify('Enter a room code'); return; }
   APP.screen = 'loading';
@@ -655,16 +715,30 @@ async function joinRoom() {
 
   const { data, error } = await db.from('rooms').select().eq('code', code).single();
   if (error || !data) { APP.screen='lobby'; notify('Room not found — check the code'); render(); return; }
-  if (data.screen === 'game' || data.screen === 'night') { APP.screen='lobby'; notify('That game has already started'); render(); return; }
 
   const alreadyIn = data.players.find(p => p.id === APP.myId);
+  const gameStarted = data.screen === 'game' || data.screen === 'night' || data.screen === 'win';
+
+  if (gameStarted && !alreadyIn) {
+    // Game is in progress and this person was never a player — block entry
+    APP.screen='lobby';
+    notify('That game has already started — you cannot join as a new player.');
+    render();
+    return;
+  }
+
   if (!alreadyIn) {
+    // New player joining before game starts
     const me = { id:APP.myId, name:APP.myName.trim(), alive:true };
     const updated = [...data.players, me];
     await db.from('rooms').update({ players: updated }).eq('code', code);
-    // Re-fetch so we have the updated player list
     const { data: fresh } = await db.from('rooms').select().eq('code', code).single();
     if (fresh) Object.assign(data, fresh);
+  }
+  // If alreadyIn + game started = silent rejoin — restore role visibility
+  if (alreadyIn && gameStarted) {
+    APP.roleVisible = true;
+    APP.nightRevealed = true;
   }
 
   APP.roomCode = code;
@@ -673,8 +747,9 @@ async function joinRoom() {
   APP.players = data.players || [];
   APP.roles = data.roles || {};
   APP.gameState = data.game_state;
-  // Use the screen stored in Supabase, not a hardcoded value
   APP.screen = data.screen || 'waiting';
+  sessionStorage.setItem('sh_room', code);
+  sessionStorage.setItem('sh_hostId', data.host_id);
   subscribeToRoom(code);
   render();
 }
@@ -1046,6 +1121,8 @@ async function resetGame() {
 
 function leaveRoom() {
   if (APP._channel) { db.removeChannel(APP._channel); APP._channel=null; }
+  sessionStorage.removeItem('sh_room');
+  sessionStorage.removeItem('sh_hostId');
   APP.screen='lobby'; APP.roomCode=null; APP.hostId=null; APP.isHost=false;
   APP.players=[]; APP.roles={}; APP.gameState=null; APP.winState=null;
   APP.fascistKnowledge=[]; APP.nightRevealed=false; APP.roleVisible=false;
@@ -1078,16 +1155,53 @@ function buildApp() {
   }
 
   if (APP.screen === 'lobby')   { wrap.appendChild(buildHeader()); wrap.appendChild(buildLobby()); return wrap; }
-  if (APP.screen === 'waiting') { wrap.appendChild(buildHeader()); wrap.appendChild(buildWaiting()); return wrap; }
-  if (APP.screen === 'night')   { wrap.appendChild(buildHeader()); wrap.appendChild(buildNight()); return wrap; }
-  if (APP.screen === 'win')     { wrap.appendChild(buildWin()); return wrap; }
+
+  // All non-lobby screens get the connection bar
+  const connBar = buildConnectionBar();
+
+  if (APP.screen === 'waiting') {
+    wrap.appendChild(buildHeader()); wrap.appendChild(buildWaiting());
+    if (connBar) wrap.appendChild(connBar);
+    return wrap;
+  }
+  if (APP.screen === 'night') {
+    wrap.appendChild(buildHeader()); wrap.appendChild(buildNight());
+    if (connBar) wrap.appendChild(connBar);
+    return wrap;
+  }
+  if (APP.screen === 'win') {
+    wrap.appendChild(buildWin());
+    if (connBar) wrap.appendChild(connBar);
+    return wrap;
+  }
 
   // game screen
   wrap.appendChild(buildHeader());
   wrap.appendChild(buildStatusBar());
   wrap.appendChild(buildGameboard());
   if (APP.exitConfirm) wrap.appendChild(buildExitModal());
+  if (connBar) wrap.appendChild(connBar);
   return wrap;
+}
+
+function buildConnectionBar() {
+  if (!APP.roomCode || APP.screen === 'lobby' || APP.screen === 'loading') return null;
+
+  const playerDots = APP.players.map(p => {
+    const online = !!APP._presenceMap[p.id];
+    return h('div', {class:'conn-player'},
+      h('div', {class:`conn-dot ${online ? 'online' : 'offline'}`}),
+      h('span', {}, p.name + (p.id === APP.myId ? ' ✦' : ''))
+    );
+  });
+
+  return h('div', {class:'conn-bar'},
+    h('span', {class:'conn-bar-label'}, 'Online'),
+    h('div', {class:'conn-players'}, ...playerDots),
+    APP.isHost
+      ? h('span', {class:'conn-room-code'}, `Room: ${APP.roomCode}`)
+      : null
+  );
 }
 
 function buildHeader() {
@@ -1100,10 +1214,10 @@ function buildHeader() {
 // ─── LOBBY ───────────────────────────────────────────────────
 function buildLobby() {
   const nameInput = h('input',{class:'input',placeholder:'Enter your name',value:APP.myName,maxlength:20});
-  nameInput.addEventListener('input', e=>{ APP.myName=e.target.value; });
+  nameInput.addEventListener('input', e=>{ APP.myName=e.target.value; sessionStorage.setItem('sh_myName', e.target.value); });
 
   const joinNameInput = h('input',{class:'input',placeholder:'Enter your name',value:APP.myName,maxlength:20});
-  joinNameInput.addEventListener('input', e=>{ APP.myName=e.target.value; });
+  joinNameInput.addEventListener('input', e=>{ APP.myName=e.target.value; sessionStorage.setItem('sh_myName', e.target.value); });
 
   const joinCodeInput = h('input',{class:'input input-code',placeholder:'XXXXX',value:APP.joinCodeInput,maxlength:5});
   joinCodeInput.addEventListener('input', e=>{ APP.joinCodeInput=e.target.value.toUpperCase(); });
@@ -1747,9 +1861,74 @@ function buildExitModal() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// BOOT
+// BOOT — reconnect if player was in a room before refresh
 // ═══════════════════════════════════════════════════════════════
-render();
+(async function boot() {
+  const savedRoom   = sessionStorage.getItem('sh_room');
+  const savedHostId = sessionStorage.getItem('sh_hostId');
+
+  if (!savedRoom) {
+    // No saved session — just show lobby
+    render();
+    return;
+  }
+
+  // Show loading while we reconnect
+  APP.screen = 'loading';
+  render();
+
+  // Fetch the room from Supabase
+  const { data, error } = await db.from('rooms').select().eq('code', savedRoom).single();
+
+  if (error || !data) {
+    // Room no longer exists (game ended, deleted, etc.)
+    sessionStorage.removeItem('sh_room');
+    sessionStorage.removeItem('sh_hostId');
+    APP.screen = 'lobby';
+    notify('Your previous room is no longer available.');
+    render();
+    return;
+  }
+
+  // Restore full state
+  APP.roomCode  = savedRoom;
+  APP.hostId    = savedHostId || data.host_id;
+  APP.isHost    = (savedHostId || data.host_id) === APP.myId;
+  APP.players   = data.players  || [];
+  APP.roles     = data.roles    || {};
+  APP.gameState = data.game_state;
+  APP.screen    = data.screen   || 'waiting';
+
+  // Restore fascist knowledge from roles
+  if (Object.keys(APP.roles).length > 0) {
+    const myRole = APP.roles[APP.myId];
+    if (myRole === 'fascist') {
+      APP.fascistKnowledge = Object.entries(APP.roles)
+        .filter(([id, r]) => (r === 'fascist' || r === 'hitler') && id !== APP.myId)
+        .map(([id, r]) => ({ id, role:r, name: APP.players.find(p=>p.id===id)?.name||'?' }));
+    } else if (myRole === 'hitler' && APP.players.length <= 6) {
+      APP.fascistKnowledge = Object.entries(APP.roles)
+        .filter(([id, r]) => r === 'fascist')
+        .map(([id, r]) => ({ id, role:'fascist', name: APP.players.find(p=>p.id===id)?.name||'?' }));
+    }
+  }
+
+  // If they had already seen their role, restore that too
+  if (APP.screen === 'game' || APP.screen === 'win') {
+    APP.roleVisible = true;
+    APP.nightRevealed = true;
+  }
+
+  // Check win state
+  if (APP.gameState) {
+    const win = checkWin(APP.gameState);
+    if (win) { APP.winState = win; APP.screen = 'win'; }
+  }
+
+  // Re-subscribe to live updates
+  subscribeToRoom(savedRoom);
+  render();
+})();
 </script>
 </body>
 </html>
