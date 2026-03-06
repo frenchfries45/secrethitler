@@ -255,6 +255,8 @@
     .policy-card:hover { transform: translateX(4px); box-shadow: 0 4px 18px rgba(0,0,0,.5); }
     .policy-card-icon { font-size: 1.4rem; }
     .policy-card-type { font-family: 'Cinzel', serif; font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; }
+    .policy-card-action { margin-left: auto; font-family: 'Cinzel', serif; font-size: .58rem; letter-spacing: .14em; text-transform: uppercase; opacity: .45; }
+    .policy-card:hover .policy-card-action { opacity: 1; color: var(--burg-light); }
     .peek-cards { display: flex; gap: 10px; justify-content: center; margin: 12px 0; }
     .peek-card { width: 58px; height: 84px; border: 1px solid; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; border-radius: 6px; }
     .peek-card.liberal { border-color: var(--steel); background: rgba(107,143,173,.18); }
@@ -521,6 +523,7 @@ let APP = {
   _channel: null,
   _notifTimer: null,
   _presenceMap: {},   // playerId -> true if online
+  _discarding: false, // guard against double card click
 };
 
 // Persist identity immediately (in case it was just generated)
@@ -640,11 +643,22 @@ function onRoomUpdate(row) {
     }
   }
 
-  // Auto-switch left tab to action on vote/legislation phases
+  // Auto-switch tabs based on phase and player role
   if (APP.gameState) {
     const p = APP.gameState.phase;
-    if (['vote','vote_result','president_discard','chancellor_discard'].includes(p)) {
+    const gs = APP.gameState;
+    const amPres  = gs.president_id  === APP.myId;
+    const amChanc = gs.chancellor_id === APP.myId;
+
+    if (p === 'vote' || p === 'vote_result') {
+      // Everyone goes to Action to vote / see result
       APP.leftTab = 'action';
+    } else if (p === 'president_discard') {
+      // President goes to Action to pick; everyone else sees the policy board
+      if (p !== prevPhase) APP.leftTab = amPres ? 'action' : 'board';
+    } else if (p === 'chancellor_discard') {
+      // Chancellor goes to Action to pick; everyone else sees the policy board
+      if (p !== prevPhase) APP.leftTab = amChanc ? 'action' : 'board';
     } else if (prevPhase && prevPhase !== p && p === 'nomination') {
       APP.leftTab = 'board';
     }
@@ -933,29 +947,37 @@ async function beginLegislation() {
 }
 
 async function presidentDiscard(idx) {
+  if (APP._discarding) return;
   const gs = APP.gameState;
   if (gs.president_id !== APP.myId) return;
+  if (gs.phase !== 'president_discard') return;
+  APP._discarding = true;
   const cards = [...gs.president_cards];
-  const [discarded] = cards.splice(idx,1);
+  const [discarded] = cards.splice(idx, 1);
   const presName = gs.current_pres_name || APP.players.find(p=>p.id===gs.president_id)?.name || 'President';
   let newGs = addLog(gs, `${presName} (President) discarded a policy.`);
   newGs = { ...newGs, phase:'chancellor_discard', president_cards:[], chancellor_cards:cards, discard_pile:[...gs.discard_pile, discarded] };
   APP.gameState = newGs;
   await pushRoomState({ game_state: newGs });
+  APP._discarding = false;
   render();
 }
 
 async function chancellorDiscard(idx) {
+  if (APP._discarding) return;
   const gs = APP.gameState;
   if (gs.chancellor_id !== APP.myId) return;
+  if (gs.phase !== 'chancellor_discard') return;
+  APP._discarding = true;
   const cards = [...gs.chancellor_cards];
-  const [discarded] = cards.splice(idx,1);
+  const [discarded] = cards.splice(idx, 1);
   const enacted = cards[0];
   const presName  = gs.current_pres_name  || APP.players.find(p=>p.id===gs.president_id)?.name  || 'President';
   const chancName = gs.current_chanc_name || APP.players.find(p=>p.id===gs.chancellor_id)?.name || 'Chancellor';
   let newGs = addLog(gs, `${chancName} (Chancellor) discarded a policy.`);
   APP.gameState = newGs;
   await enactPolicy(enacted, gs.draw_pile, [...gs.discard_pile, discarded], false, gs.election_tracker, presName, chancName);
+  APP._discarding = false;
 }
 
 
@@ -1557,12 +1579,14 @@ function buildActionTab() {
       content.push(
         h('p',{class:'text-dim italic',style:{fontSize:'.85rem'}},'Choose one policy to discard'),
         h('div',{class:'policy-cards-area'},
-          ...gs.president_cards.map((card,i)=>
-            h('div',{class:`policy-card ${card}-policy`,onClick:()=>presidentDiscard(i)},
+          ...gs.president_cards.map((card,i)=> {
+            const idx = i; // capture by value to avoid closure bug
+            return h('div',{class:`policy-card ${card}-policy`,onClick:()=>presidentDiscard(idx)},
               h('span',{class:'policy-card-icon'},card==='liberal'?'🔵':'🔴'),
-              h('span',{class:'policy-card-type'},card)
-            )
-          )
+              h('span',{class:'policy-card-type'},card),
+              h('span',{class:'policy-card-action'},'DISCARD')
+            );
+          })
         ),
         h('p',{class:'text-faint italic',style:{fontSize:'.75rem'}},'Click to discard — the others go to Chancellor')
       );
@@ -1588,12 +1612,14 @@ function buildActionTab() {
         content.push(
           h('p',{class:'text-dim italic',style:{fontSize:'.85rem'}},'Choose one policy to discard — the other will be enacted'),
           h('div',{class:'policy-cards-area'},
-            ...gs.chancellor_cards.map((card,i)=>
-              h('div',{class:`policy-card ${card}-policy`,onClick:()=>chancellorDiscard(i)},
+            ...gs.chancellor_cards.map((card,i)=> {
+              const idx = i; // capture by value
+              return h('div',{class:`policy-card ${card}-policy`,onClick:()=>chancellorDiscard(idx)},
                 h('span',{class:'policy-card-icon'},card==='liberal'?'🔵':'🔴'),
-                h('span',{class:'policy-card-type'},card)
-              )
-            )
+                h('span',{class:'policy-card-type'},card),
+                h('span',{class:'policy-card-action'},'DISCARD')
+              );
+            })
           )
         );
       }
