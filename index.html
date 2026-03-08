@@ -527,6 +527,7 @@ let APP = {
   rightTab: 'players',
   identityOpen: false,
   exitConfirm: false,
+  confirmNominee: null, // {id, name} pending confirmation
   linkCopied: false,
   // subscription handle
   _channel: null,
@@ -1499,6 +1500,7 @@ function buildApp() {
   wrap.appendChild(buildStatusBar());
   wrap.appendChild(buildGameboard());
   if (APP.exitConfirm) wrap.appendChild(buildExitModal());
+  if (APP.confirmNominee) wrap.appendChild(buildNomineeConfirmModal());
   if (connBar) wrap.appendChild(connBar);
   return wrap;
 }
@@ -2053,8 +2055,10 @@ function buildRightPanel() {
       if (notEligible) cls+=' not-eligible';
 
       const onClick = canSelect ? ()=>{
-        if (phase==='nomination'&&amPres) nominateChancellor(p.id);
-        else if (phase==='executive'&&amPres) {
+        if (phase==='nomination'&&amPres) {
+          APP.confirmNominee = { id: p.id, name: p.name };
+          render();
+        } else if (phase==='executive'&&amPres) {
           const a=gs.executive_action;
           if (a==='investigate') executeInvestigate(p.id);
           else if (a==='special_elect') executeSpecialElect(p.id);
@@ -2171,6 +2175,25 @@ function buildWin() {
 }
 
 // ─── EXIT MODAL ───────────────────────────────────────────────
+function buildNomineeConfirmModal() {
+  const { id, name } = APP.confirmNominee;
+  const dismiss = () => { APP.confirmNominee = null; render(); };
+  const confirm = () => { APP.confirmNominee = null; nominateChancellor(id); };
+  return h('div',{class:'overlay',onClick:dismiss},
+    h('div',{class:'modal',onClick:e=>e.stopPropagation()},
+      h('div',{class:'modal-icon'},'🏛'),
+      h('div',{class:'modal-title'},'Nominate Chancellor?'),
+      h('p',{class:'modal-sub'},`Are you sure you want to pick `),
+      h('p',{class:'modal-nominee-name'},name),
+      h('p',{class:'modal-sub'},'as your Chancellor?'),
+      h('div',{class:'modal-actions'},
+        h('button',{class:'btn btn-ghost',onClick:dismiss},'No'),
+        h('button',{class:'btn btn-primary',onClick:confirm},'Yes, Nominate')
+      )
+    )
+  );
+}
+
 function buildExitModal() {
   return h('div',{class:'overlay',onClick:()=>{ APP.exitConfirm=false; render(); }},
     h('div',{class:'modal',onClick:e=>e.stopPropagation()},
