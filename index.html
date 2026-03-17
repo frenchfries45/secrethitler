@@ -110,19 +110,43 @@
     .input-code { text-transform: uppercase; letter-spacing: .2em; font-family: 'Cinzel', serif; }
 
     /* ─── LOBBY ──────────────────────────────────────────────── */
-    .lobby { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; padding: 24px 16px; gap: 32px; }
+    .lobby { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; padding: 24px 16px; gap: 28px; }
     .lobby-hero { text-align: center; max-width: 500px; }
     .lobby-hero p { color: var(--ivory-dim); font-style: italic; font-size: 1.1rem; line-height: 1.6; margin-top: 12px; }
-    .lobby-cards { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; max-width: 600px; width: 100%; }
-    .lobby-card { flex: 1; min-width: 220px; max-width: 260px; }
     .lobby-footer { text-align: center; color: var(--ivory-faint); font-style: italic; font-size: .85rem; }
+
+    /* home step — two big buttons */
+    .lobby-home { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 360px; }
+    .lobby-big-btn {
+      width: 100%; padding: 18px 28px; border-radius: 10px;
+      font-family: 'Cinzel', serif; font-size: 1rem; font-weight: 700;
+      letter-spacing: .15em; text-transform: uppercase; cursor: pointer; transition: all .18s;
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+    }
+    .lobby-big-btn.create {
+      background: linear-gradient(135deg, #7A2030 0%, #9B3040 100%);
+      color: var(--ivory); border: 1px solid rgba(176,141,87,.2);
+      box-shadow: 0 6px 24px rgba(0,0,0,.4);
+    }
+    .lobby-big-btn.create:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+    .lobby-big-btn.join {
+      background: #141E34; color: var(--bronze-light);
+      border: 1px solid rgba(176,141,87,.35);
+    }
+    .lobby-big-btn.join:hover { border-color: var(--bronze); background: #1A2540; }
+
+    /* name entry step */
+    .lobby-form { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 16px; }
+    .lobby-form-title { font-family: 'Cinzel', serif; font-size: 1.1rem; font-weight: 700; color: var(--bronze-light); text-align: center; letter-spacing: .1em; margin-bottom: 4px; }
+    .lobby-back-btn { background: none; border: none; color: var(--ivory-faint); font-size: .85rem; cursor: pointer; text-align: center; margin-top: 4px; transition: color .15s; font-family: 'Crimson Text', serif; }
+    .lobby-back-btn:hover { color: var(--ivory-dim); }
 
     /* ─── WAITING ROOM ───────────────────────────────────────── */
     .waiting-room { max-width: 640px; margin: 40px auto; padding: 24px 16px; }
     .room-code-label { font-family: 'Cinzel', serif; font-size: .65rem; letter-spacing: .25em; color: var(--ivory-faint); text-transform: uppercase; margin-bottom: 8px; text-align: center; }
     .room-code-big { font-family: 'Cinzel', serif; font-size: 3rem; font-weight: 900; color: var(--bronze-light); letter-spacing: .35em; text-shadow: 1px 2px 10px rgba(0,0,0,.5); text-align: center; }
     .room-code-sub { text-align: center; color: var(--ivory-faint); font-style: italic; font-size: .88rem; margin: 8px 0 14px; }
-    .invite-row { display: flex; justify-content: center; margin-bottom: 16px; }
+    .invite-row { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 16px; }
     .invite-copy-btn {
       font-family: 'Cinzel', serif; font-size: .68rem; letter-spacing: .08em;
       text-transform: uppercase; padding: 9px 22px; border-radius: 6px;
@@ -131,6 +155,15 @@
     }
     .invite-copy-btn:hover { background: rgba(176,141,87,.2); border-color: var(--bronze); }
     .invite-copy-btn.copied { color: var(--green-pass); border-color: rgba(78,154,110,.5); background: #121E1C; }
+    .invite-whatsapp-btn {
+      display: flex; align-items: center; gap: 9px;
+      background: #25D366; color: #fff; border: none;
+      font-family: 'Cinzel', serif; font-size: .78rem; font-weight: 700;
+      letter-spacing: .06em; padding: 11px 26px; border-radius: 8px;
+      cursor: pointer; transition: all .18s; box-shadow: 0 4px 16px rgba(37,211,102,.3);
+    }
+    .invite-whatsapp-btn:hover { background: #1ebe5c; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(37,211,102,.45); }
+    .invite-whatsapp-btn svg { width: 18px; height: 18px; fill: #fff; flex-shrink: 0; }
     .player-list { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
     .player-item {
       display: flex; align-items: center; gap: 12px; padding: 10px 14px;
@@ -521,6 +554,7 @@ let APP = {
   myId: _savedId || Math.random().toString(36).substr(2,9),
   myName: _savedName || '',
   joinCodeInput: '',
+  lobbyStep: 'home', // 'home' | 'create' | 'join'
   roomCode: null,
   hostId: null,
   isHost: false,
@@ -1455,6 +1489,7 @@ function leaveRoom() {
   APP.screen='lobby'; APP.roomCode=null; APP.hostId=null; APP.isHost=false;
   APP.players=[]; APP.roles={}; APP.gameState=null; APP.winState=null;
   APP.fascistKnowledge=[]; APP.nightRevealed=false; APP.roleVisible=false;
+  APP.lobbyStep='home'; APP.exitConfirm=false;
   render();
 }
 
@@ -1465,7 +1500,10 @@ function leaveRoom() {
 // ═══════════════════════════════════════════════════════════════
 (function readUrlParams() {
   const code = new URLSearchParams(window.location.search).get('room');
-  if (code) APP.joinCodeInput = code.toUpperCase().slice(0,4);
+  if (code) {
+    APP.joinCodeInput = code.toUpperCase().slice(0,4);
+    APP.lobbyStep = 'join'; // skip to name entry for join
+  }
 })();
 
 // ═══════════════════════════════════════════════════════════════
@@ -1551,41 +1589,61 @@ function buildHeader() {
 
 // ─── LOBBY ───────────────────────────────────────────────────
 function buildLobby() {
-  const nameInput = h('input',{class:'input',placeholder:'Enter your name',value:APP.myName,maxlength:20});
-  nameInput.addEventListener('input', e=>{ APP.myName=e.target.value; sessionStorage.setItem('sh_myName', e.target.value); });
+  // ── HOME STEP ────────────────────────────────────────────
+  if (APP.lobbyStep === 'home') {
+    return h('div',{class:'lobby'},
+      h('div',{class:'lobby-home'},
+        h('button',{class:'lobby-big-btn create',onClick:()=>{ APP.lobbyStep='create'; render(); }},
+          h('span',{},'＋'), 'Create Room'
+        ),
+        h('button',{class:'lobby-big-btn join',onClick:()=>{ APP.lobbyStep='join'; render(); }},
+          h('span',{},'→'), 'Join Room'
+        )
+      ),
+      h('p',{class:'lobby-footer'},'5–10 players · Private rooms · Faithful rules'),
+      h('div',{class:'lobby-hero'},
+        h('p',{},"Germany, 1932. A fragile democracy teeters on the edge. Liberals fight to save it. Fascists scheme to destroy it. And Hitler hides in plain sight.")
+      )
+    );
+  }
 
-  const joinNameInput = h('input',{class:'input',placeholder:'Enter your name',value:APP.myName,maxlength:20});
-  joinNameInput.addEventListener('input', e=>{ APP.myName=e.target.value; sessionStorage.setItem('sh_myName', e.target.value); });
-
-  const joinCodeInput = h('input',{class:'input input-code',placeholder:'XXXX',value:APP.joinCodeInput,maxlength:4});
-  joinCodeInput.addEventListener('input', e=>{ APP.joinCodeInput=e.target.value.toUpperCase(); });
-
-  return h('div',{class:'lobby'},
-    h('div',{class:'lobby-cards'},
-      h('div',{class:'panel lobby-card'},
-        h('div',{class:'panel-title'},'Create Room'),
+  // ── CREATE STEP ───────────────────────────────────────────
+  if (APP.lobbyStep === 'create') {
+    const nameInput = h('input',{class:'input',placeholder:'Enter your name',value:APP.myName,maxlength:20,autofocus:true});
+    nameInput.addEventListener('input', e=>{ APP.myName=e.target.value; sessionStorage.setItem('sh_myName', e.target.value); });
+    setTimeout(()=>{ try { nameInput.focus(); } catch(e){} }, 80);
+    return h('div',{class:'lobby'},
+      h('div',{class:'lobby-form'},
+        h('div',{class:'lobby-form-title'},'Create a Room'),
         h('div',{class:'input-group'},
           h('label',{class:'input-label'},'Your Name'),
           nameInput
         ),
-        h('button',{class:'btn btn-primary btn-full',onClick:createRoom},'Create Room')
-      ),
-      h('div',{class:'panel lobby-card'},
-        h('div',{class:'panel-title'},'Join Room'),
-        h('div',{class:'input-group'},
-          h('label',{class:'input-label'},'Your Name'),
-          joinNameInput
-        ),
-        h('div',{class:'input-group'},
-          h('label',{class:'input-label'},'Room Code'),
-          joinCodeInput
-        ),
-        h('button',{class:'btn btn-secondary btn-full',onClick:joinRoom},'Join Room')
+        h('button',{class:'btn btn-primary btn-full',onClick:createRoom},'＋ Create Room'),
+        h('button',{class:'lobby-back-btn',onClick:()=>{ APP.lobbyStep='home'; render(); }},'← Back')
       )
-    ),
-    h('p',{class:'lobby-footer'},'5–10 players · Private rooms · Faithful rules'),
-    h('div',{class:'lobby-hero'},
-      h('p',{},"Germany, 1932. A fragile democracy teeters on the edge. Liberals fight to save it. Fascists scheme to destroy it. And Hitler hides in plain sight.")
+    );
+  }
+
+  // ── JOIN STEP ─────────────────────────────────────────────
+  const joinNameInput = h('input',{class:'input',placeholder:'Enter your name',value:APP.myName,maxlength:20});
+  joinNameInput.addEventListener('input', e=>{ APP.myName=e.target.value; sessionStorage.setItem('sh_myName', e.target.value); });
+  const joinCodeInput = h('input',{class:'input input-code',placeholder:'XXXX',value:APP.joinCodeInput,maxlength:4});
+  joinCodeInput.addEventListener('input', e=>{ APP.joinCodeInput=e.target.value.toUpperCase(); });
+  setTimeout(()=>{ try { (APP.myName ? joinCodeInput : joinNameInput).focus(); } catch(e){} }, 80);
+  return h('div',{class:'lobby'},
+    h('div',{class:'lobby-form'},
+      h('div',{class:'lobby-form-title'},'Join a Room'),
+      h('div',{class:'input-group'},
+        h('label',{class:'input-label'},'Your Name'),
+        joinNameInput
+      ),
+      h('div',{class:'input-group'},
+        h('label',{class:'input-label'},'Room Code'),
+        joinCodeInput
+      ),
+      h('button',{class:'btn btn-secondary btn-full',onClick:joinRoom},'→ Join Room'),
+      h('button',{class:'lobby-back-btn',onClick:()=>{ APP.lobbyStep='home'; render(); }},'← Back')
     )
   );
 }
@@ -1593,6 +1651,9 @@ function buildLobby() {
 // ─── WAITING ROOM ─────────────────────────────────────────────
 function buildWaiting() {
   const url = `${window.location.origin}${window.location.pathname}?room=${APP.roomCode}`;
+  const waMsg = encodeURIComponent(`Join my Secret Hitler game! Use this link to join directly:\n${url}`);
+  const waUrl = `https://wa.me/?text=${waMsg}`;
+
   const copyBtn = h('button',{
     class: 'invite-copy-btn'+(APP.linkCopied?' copied':''),
     onClick: () => {
@@ -1601,11 +1662,24 @@ function buildWaiting() {
         setTimeout(()=>{ APP.linkCopied=false; render(); }, 2500);
       });
     }
-  }, APP.linkCopied ? '✓ Link Copied!' : '🔗 Copy Invite');
+  }, APP.linkCopied ? '✓ Link Copied!' : '🔗 Copy Link');
 
-  const playerItems = APP.players.map(p =>
+  const waBtn = h('a',{
+    class:'invite-whatsapp-btn',
+    href: waUrl,
+    target:'_blank',
+    rel:'noopener noreferrer'
+  },
+    // WhatsApp SVG icon
+    h('svg',{viewBox:'0 0 24 24',xmlns:'http://www.w3.org/2000/svg'},
+      h('path',{d:'M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z'})
+    ),
+    'Invite via WhatsApp'
+  );
+
+  const playerItems = APP.players.map((p, idx) =>
     h('div',{class:'player-item'},
-      h('div',{class:'player-avatar'},p.name.charAt(0).toUpperCase()),
+      h('div',{class:'player-avatar'},idx+1),
       h('span',{class:'player-name'},p.name+(p.id===APP.myId?' (You)':'')),
       p.id===APP.hostId ? h('span',{class:'player-host-badge'},'HOST') : null,
       APP.isHost && p.id!==APP.myId ? h('button',{class:'btn btn-ghost btn-sm',style:{marginLeft:'auto'},onClick:()=>removePlayer(p.id)},'✕') : null
@@ -1628,7 +1702,7 @@ function buildWaiting() {
       h('div',{class:'room-code-label'},'Room Code'),
       h('div',{class:'room-code-big'},APP.roomCode),
       h('p',{class:'room-code-sub'},'Share this code — or send a direct invite'),
-      h('div',{class:'invite-row'},copyBtn),
+      h('div',{class:'invite-row'}, waBtn, copyBtn),
       h('div',{class:'divider'}),
       h('div',{class:'panel-title'},`Players (${APP.players.length}/10)`),
       h('div',{class:'player-list'},...playerItems),
