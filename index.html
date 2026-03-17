@@ -50,7 +50,16 @@
       text-align: center; padding: 22px 16px 14px;
       border-bottom: 1px solid var(--panel-border);
       background: linear-gradient(180deg, rgba(122,32,48,0.14) 0%, transparent 100%);
+      position: relative;
     }
+    .header-exit-btn {
+      position: absolute; top: 50%; right: 14px; transform: translateY(-50%);
+      background: none; border: 1px solid rgba(232,224,212,.18);
+      color: rgba(232,224,212,.45); font-size: .75rem; font-family: 'Cinzel', serif;
+      letter-spacing: .08em; padding: 6px 12px; border-radius: 6px;
+      cursor: pointer; transition: all .2s; white-space: nowrap;
+    }
+    .header-exit-btn:hover { border-color: var(--burg-light); color: var(--burg-light); background: rgba(122,32,48,.12); }
     .header h1 {
       font-family: 'Cinzel', serif; font-size: clamp(1.8rem,5vw,3rem);
       font-weight: 900; color: var(--bronze-light); letter-spacing: .15em;
@@ -1482,16 +1491,19 @@ function buildApp() {
   if (APP.screen === 'waiting') {
     wrap.appendChild(buildHeader()); wrap.appendChild(buildWaiting());
     if (connBar) wrap.appendChild(connBar);
+    if (APP.exitConfirm) wrap.appendChild(buildExitModal());
     return wrap;
   }
   if (APP.screen === 'night') {
     wrap.appendChild(buildHeader()); wrap.appendChild(buildNight());
     if (connBar) wrap.appendChild(connBar);
+    if (APP.exitConfirm) wrap.appendChild(buildExitModal());
     return wrap;
   }
   if (APP.screen === 'win') {
     wrap.appendChild(buildWin());
     if (connBar) wrap.appendChild(connBar);
+    if (APP.exitConfirm) wrap.appendChild(buildExitModal());
     return wrap;
   }
 
@@ -1499,9 +1511,9 @@ function buildApp() {
   wrap.appendChild(buildHeader());
   wrap.appendChild(buildStatusBar());
   wrap.appendChild(buildGameboard());
-  if (APP.exitConfirm) wrap.appendChild(buildExitModal());
   if (APP.confirmNominee) wrap.appendChild(buildNomineeConfirmModal());
   if (connBar) wrap.appendChild(connBar);
+  if (APP.exitConfirm) wrap.appendChild(buildExitModal());
   return wrap;
 }
 
@@ -1526,7 +1538,12 @@ function buildConnectionBar() {
 }
 
 function buildHeader() {
+  const showExit = APP.screen !== 'lobby' && APP.screen !== 'loading';
+  const exitBtn = showExit
+    ? h('button',{class:'header-exit-btn',onClick:()=>{ APP.exitConfirm=true; render(); }},'✕ Exit')
+    : null;
   return h('div',{class:'header'},
+    exitBtn,
     h('h1',{},'Secret ',h('span',{},'Hitler')),
     h('p',{class:'header-sub'},'A game of social deduction and political intrigue')
   );
@@ -1721,7 +1738,7 @@ function buildStatusBar() {
     h('div',{class:'status-item'},h('span',{class:'status-label'},'Phase'),h('span',{class:'status-value',style:{textTransform:'capitalize'}},(gs?.phase||'').replace(/_/g,' '))),
     h('div',{class:'status-item'},h('span',{class:'status-label'},'President'),h('span',{class:'status-value'},pres?.name||'—')),
     chanc ? h('div',{class:'status-item'},h('span',{class:'status-label'},'Chancellor'),h('span',{class:'status-value'},chanc.name)) : null,
-    h('button',{class:'exit-btn',onClick:()=>{ APP.exitConfirm=true; render(); }},'✕ Exit')
+    null
   );
 }
 
@@ -2198,11 +2215,13 @@ function buildExitModal() {
   return h('div',{class:'overlay',onClick:()=>{ APP.exitConfirm=false; render(); }},
     h('div',{class:'modal',onClick:e=>e.stopPropagation()},
       h('div',{class:'modal-icon'},'🚪'),
-      h('div',{class:'modal-title'},'Leave the Game?'),
-      h('p',{class:'modal-sub'},'The game is still in progress. Are you sure you want to abandon your post?'),
+      h('div',{class:'modal-title'},'Exit to Main Menu?'),
+      h('p',{class:'modal-sub'},APP.screen==='game'||APP.screen==='night'
+        ? 'The game is still in progress. Are you sure you want to abandon your post?'
+        : 'Are you sure you want to return to the main screen?'),
       h('div',{class:'modal-actions'},
         h('button',{class:'btn btn-ghost',onClick:()=>{ APP.exitConfirm=false; render(); }},'Stay'),
-        h('button',{class:'btn btn-primary',onClick:leaveRoom},'Exit Game')
+        h('button',{class:'btn btn-primary',onClick:leaveRoom},'Confirm Exit')
       )
     )
   );
